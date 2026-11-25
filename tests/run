@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Every check that needs no desktop. Run from anywhere.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+node tests/model.test.mjs
+bash -n scripts/fmv-window
+jq -e . manifest.json >/dev/null
+
+if command -v omarchy >/dev/null 2>&1; then
+  omarchy plugin validate .
+fi
+
+echo "All checks passed"

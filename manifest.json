@@ -2,18 +2,21 @@
   "schemaVersion": 1,
   "id": "plugin.fm.video",
   "name": "FM.video",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "author": "Tim Thomas",
   "license": "MIT",
-  "description": "Radio with music videos on your desktop. See what a station is playing in the bar, pick from over 200 stations, and watch the music videos in a small window that stays on top on every workspace. Shows the lyric line in the bar, in time with the song, when the song has timed lyrics.",
-  "kinds": ["service", "bar-widget"],
+  "description": "Radio with music videos on your desktop. See what a station is playing in the bar, pick from over 200 stations, and watch the music videos in a small window that stays on top on every workspace. The lyric line shows in the bar and lights up as it is sung. Listen live with a visualiser, and play channels, festival sets and playlists from FM.video.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
   "entryPoints": {
     "service": "Service.qml",
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
     "displayName": "FM.video",
-    "description": "The song on now, with play, pause and next. Click for stations, the video window and lyrics.",
+    "description": "The song on now, with play, pause and next. Click for stations, live radio, channels, the video window and lyrics.",
     "category": "Media",
     "defaultSection": "right",
     "allowMultiple": false

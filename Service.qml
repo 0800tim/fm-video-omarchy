@@ -43,6 +43,8 @@ Item {
   property string windowAddress: ""
   property double remoteReadyAt: 0
   readonly property bool remoteUsable: remoteCode !== "" && windowAddress !== "" && windowAddress === remoteWindow
+  property string tabAsked: ""
+  property int tabAskedSerial: 0
   property bool stateLoaded: false
 
   // ---- From the API.
@@ -949,6 +951,8 @@ Item {
     function hideWindow(): void { root.hideWindow() }
     function stop(): void { root.closeWindow() }
     function openApp(): void { root.openApp() }
+    // Which tab the panel shows: stations, channels, sets or playlists.
+    function tab(name: string): void { root.tabAsked = name; root.tabAskedSerial += 1 }
     function playPause(): void { root.playPause() }
     function next(): void { root.next() }
     function previous(): void { root.previous() }

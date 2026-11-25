@@ -230,6 +230,10 @@ Panel {
   property int cursor: -1
   // "stations", "channels", "sets" or "playlists".
   property string tab: "stations"
+  readonly property int tabAskedSerial: svc ? svc.tabAskedSerial : 0
+  onTabAskedSerialChanged: {
+    if (svc && ["stations", "channels", "sets", "playlists"].indexOf(svc.tabAsked) !== -1) tab = svc.tabAsked
+  }
   readonly property var rows: !svc ? []
     : tab === "stations" ? Model.stationRows(svc.stations, svc.country, query, svc.favourites)
     : Model.listRows(tab, svc.channels, svc.playlists, query)
