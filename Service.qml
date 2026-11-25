@@ -166,6 +166,7 @@ Item {
   property string installToken: ""
   property bool tokenLoaded: false
   property bool installRefused: false
+  property bool registering: false
   property double lastRegisterAt: 0
   readonly property string tokenPath: stateDir + "/install-token"
 
@@ -192,8 +193,10 @@ Item {
     if (Date.now() - lastRegisterAt < 86400000) return
     lastRegisterAt = Date.now()
     saveState()
+    registering = true
     var request = requestComponent.createObject(root, {
       done: function(status, data) {
+        root.registering = false
         if (status === 200 && data && /^fmi_[A-Za-z0-9_-]{8,200}$/.test(String(data.token || ""))) {
           root.installToken = String(data.token)
           root.installRefused = false
@@ -226,7 +229,14 @@ Item {
     onTriggered: root.registerInstall()
   }
 
-  function api(path, done) {
+  // On a first run the token is still on its way. Requests wait for it,
+  // for a few seconds at most, so they are not refused for lacking one.
+  function waitingForToken(tries) {
+    return installToken === "" && (!tokenLoaded || registering) && (tries || 0) < 8
+  }
+
+  function api(path, done, tries) {
+    if (waitingForToken(tries)) { delay(1500, function() { root.api(path, done, (tries || 0) + 1) }); return }
     if (Date.now() < pausedUntil) { done(429, null); return }
     var request = requestComponent.createObject(root, {
       done: function(status, data) {
@@ -240,7 +250,8 @@ Item {
     request.running = true
   }
 
-  function apiPost(path, body, done) {
+  function apiPost(path, body, done, tries) {
+    if (waitingForToken(tries)) { delay(1500, function() { root.apiPost(path, body, done, (tries || 0) + 1) }); return }
     if (Date.now() < pausedUntil) { done(429, null); return }
     var request = requestComponent.createObject(root, {
       done: function(status, data) {
@@ -910,7 +921,7 @@ Item {
       if (/^fmi_[A-Za-z0-9_-]{8,200}$/.test(token)) root.installToken = token
       root.tokenLoaded = true
     }
-    onLoadFailed: root.tokenLoaded = true
+    onLoadFailed: { root.tokenLoaded = true; root.registerInstall() }
   }
 
   FileView {
