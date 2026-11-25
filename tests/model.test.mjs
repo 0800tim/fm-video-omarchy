@@ -126,6 +126,7 @@ test("mini player address", () => {
   assert.equal(Model.miniHref(base, "george", { live: true }), base + "?station=george&live=1&shell=omarchy")
   assert.equal(Model.miniHref(base, "george", { live: true, visualiser: false }), base + "?station=george&live=1&viz=0&shell=omarchy")
   assert.equal(Model.miniHref(base, "zm", { video: "ZsudGQCy_fM" }), base + "?station=zm&v=ZsudGQCy_fM&shell=omarchy")
+  assert.equal(Model.miniHref(base, "zm", { remote: "abc123" }), base + "?station=zm&remote=abc123&shell=omarchy")
 })
 
 test("window title: markers at the end in either order", () => {

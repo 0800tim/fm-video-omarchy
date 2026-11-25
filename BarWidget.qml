@@ -57,12 +57,14 @@ Panel {
   readonly property string glyphPause: "\u{F03E4}"
   readonly property string glyphNext: "\u{F04AD}"
   readonly property string glyphPrevious: "\u{F04AE}"
+  readonly property string glyphStop: "\u{F04DB}"
   readonly property string glyphHeart: "\u{F02D1}"
   readonly property string glyphHeartOutline: "\u{F02D5}"
 
   readonly property bool windowOpen: svc ? svc.windowOpen : false
   readonly property bool playing: svc ? svc.playing : false
   readonly property bool windowLive: svc ? svc.windowLive : false
+  readonly property bool windowShown: svc ? svc.windowShown : false
   readonly property bool showSongWhenClosed: setting("showSongWhenClosed", true) === true
   readonly property int maxLength: Math.max(12, Number(setting("maxLength", 56)) || 56)
 
@@ -385,13 +387,23 @@ Panel {
           bordered: true
           onClicked: root.svc.next()
         }
+        PanelActionButton {
+          iconText: root.glyphStop
+          tooltipText: "Stop and close"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          onClicked: root.svc.closeWindow()
+        }
       }
 
       PanelSeparator { foreground: root.foreground }
 
+      // Off hides the window and the music carries on. Stop, above, is
+      // what turns it off.
       SwitchRow {
-        label: "Video window"
-        checked: root.windowOpen
+        label: root.windowLive ? "Show visualiser" : "Show video"
+        checked: root.windowShown
         onToggled: if (root.svc) root.svc.toggleWindow()
       }
       SwitchRow {
@@ -401,12 +413,6 @@ Panel {
         opacity: root.svc !== null && root.svc.canLive ? 1 : 0.4
         checked: root.svc ? (root.windowOpen ? root.windowLive : root.svc.live) : false
         onToggled: if (root.svc) root.svc.setLive(!checked)
-      }
-      SwitchRow {
-        label: "Visualiser"
-        visible: root.windowLive
-        checked: root.svc ? root.svc.visualiser : false
-        onToggled: if (root.svc) root.svc.setVisualiser(!root.svc.visualiser)
       }
       SwitchRow {
         visible: !root.windowLive
@@ -424,7 +430,7 @@ Panel {
       Column {
         width: parent.width
         spacing: Style.space(6)
-        visible: root.windowOpen
+        visible: root.windowShown
 
         ButtonGroup {
           options: [

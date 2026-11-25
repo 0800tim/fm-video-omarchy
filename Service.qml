@@ -24,6 +24,14 @@ Item {
   property var favourites: []                 // station keys, in the order they were added
   property bool live: false                   // play the station's own broadcast, not the videos
   property bool visualiser: false             // draw the visualiser while live (heavy on the processor)
+  // Commands reach an open window through the FM.video server, on a code
+  // only this install knows. remoteWindow is the window that was opened
+  // with the code in its address, and so is listening on it.
+  property string remoteCode: ""
+  property string remoteWindow: ""
+  property string windowAddress: ""
+  property double remoteReadyAt: 0
+  readonly property bool remoteUsable: remoteCode !== "" && windowAddress !== "" && windowAddress === remoteWindow
   property bool stateLoaded: false
 
   // ---- From the API.
@@ -52,11 +60,18 @@ Item {
   readonly property string windowTitle: toplevel ? String(toplevel.title || "") : ""
   readonly property var titleInfo: windowOpen ? Model.parseTitle(windowTitle) : null
   // What the window is doing now, which wins over what was asked for.
-  readonly property bool windowLive: titleInfo ? titleInfo.live === true : false
+  // While a window is still loading its title says nothing yet, so go by
+  // what was asked for. Otherwise the panel would flip to its video
+  // layout and back on every station change while listening live.
+  readonly property bool windowLive: titleInfo && titleInfo.song !== ""
+    ? titleInfo.live === true : (windowOpen && live && canLive)
   readonly property bool canLive: stationObject !== null && String(stationObject.streamUrl || "") !== ""
   property int windowPid: 0
   property bool opening: false
   property bool windowFullscreen: false
+  // Out of sight on a workspace that is never shown, and still playing.
+  property bool windowHidden: false
+  readonly property bool windowShown: windowOpen && !windowHidden
   readonly property string windowSize: {
     if (!windowOpen) return ""
     if (windowFullscreen) return "full"
@@ -140,6 +155,20 @@ Item {
     })
     request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent,
       "-H", "X-FMV-Key: " + C.apiKey, "-w", "\n%{http_code}", C.apiBase + path]
+    request.running = true
+  }
+
+  function apiPost(path, body, done) {
+    if (Date.now() < pausedUntil) { done(429, null); return }
+    var request = requestComponent.createObject(root, {
+      done: function(status, data) {
+        if (status === 429) root.pausedUntil = Date.now() + 30000
+        done(status, data)
+      }
+    })
+    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent,
+      "-H", "X-FMV-Key: " + C.apiKey, "-H", "Content-Type: application/json",
+      "-X", "POST", "--data-raw", JSON.stringify(body), "-w", "\n%{http_code}", C.apiBase + path]
     request.running = true
   }
 
@@ -287,9 +316,11 @@ Item {
   function takeState(data) {
     if (!data) return
     if (data.open && data.pid) windowPid = data.pid
+    windowAddress = data.open && data.address ? String(data.address) : ""
     windowFullscreen = data.open === true && data.fullscreen === true
+    windowHidden = data.open === true && data.hidden === true
     // A full screen window is not a place to come back to.
-    if (data.w > 0 && data.h > 0 && data.fullscreen !== true) {
+    if (data.w > 0 && data.h > 0 && data.fullscreen !== true && data.hidden !== true) {
       var g = { x: data.x, y: data.y, w: data.w, h: data.h }
       if (!geometry || geometry.x !== g.x || geometry.y !== g.y || geometry.w !== g.w || geometry.h !== g.h) {
         geometry = g
@@ -300,7 +331,7 @@ Item {
 
   function address(video) {
     return Model.miniHref(C.miniUrl, station, {
-      lyrics: videoLyrics, live: live && canLive, visualiser: visualiser, video: video || ""
+      lyrics: videoLyrics, live: live && canLive, video: video || "", remote: remoteCode
     })
   }
 
@@ -309,10 +340,13 @@ Item {
     video = String(video || "")
     if (!/^[A-Za-z0-9_-]{6,20}$/.test(video)) return
     if (live) { live = false; saveState() }
-    var url = Model.miniHref(C.miniUrl, station, { lyrics: videoLyrics, video: video })
-    var done = function(data) { root.opening = false; root.takeState(data) }
-    if (windowOpen) windowCommand(["switch", url], done)
-    else {
+    var url = Model.miniHref(C.miniUrl, station, { lyrics: videoLyrics, video: video, remote: remoteCode })
+    var done = function(data) { root.opening = false; root.takeState(data); root.noteRemote(data) }
+    if (windowOpen) {
+      remote({ cmd: "video", value: video }, function(ok) {
+        if (!ok) root.windowCommand(["switch", url], done)
+      })
+    } else {
       opening = true
       var g = geometry
       var args = ["open", url]
@@ -339,7 +373,7 @@ Item {
 
   // Someone switched inside the window: remember it for next time.
   onWindowLiveChanged: {
-    if (windowOpen && titleInfo && live !== windowLive) { live = windowLive; saveState() }
+    if (windowOpen && titleInfo && titleInfo.song !== "" && live !== windowLive) { live = windowLive; saveState() }
   }
 
   function openWindow() {
@@ -348,7 +382,42 @@ Item {
     var g = geometry
     var args = ["open", address()]
     if (g) args = args.concat([String(g.x), String(g.y), String(g.w), String(g.h)])
-    windowCommand(args, function(data) { root.opening = false; root.takeState(data) })
+    windowCommand(args, function(data) { root.opening = false; root.takeState(data); root.noteRemote(data) })
+  }
+
+  // The window just opened carries the code in its address. The page joins
+  // its channel a moment after it loads, so hold commands back until then.
+  function noteRemote(data) {
+    if (!data || !data.open || !data.address || remoteCode === "") return
+    remoteWindow = String(data.address)
+    remoteReadyAt = Date.now() + 3000
+    saveState()
+  }
+
+  // Send a command to the open window. done(true) means the server passed
+  // it on, which is not proof the page acted, so callers check the title.
+  function remote(command, done) {
+    if (!remoteUsable) { done(false); return }
+    var wait = Math.max(0, remoteReadyAt - Date.now())
+    var send = function() {
+      root.apiPost("/api/mini/remote/" + encodeURIComponent(root.remoteCode), command, function(status) {
+        done(status === 200)
+      })
+    }
+    if (wait > 0) delay(wait, send)
+    else send()
+  }
+
+  Component {
+    id: delayComponent
+    Timer {
+      property var then: null
+      running: true
+      onTriggered: { if (then) then(); destroy() }
+    }
+  }
+  function delay(ms, then) {
+    delayComponent.createObject(root, { interval: ms, then: then })
   }
 
   function closeWindow() {
@@ -358,15 +427,29 @@ Item {
 
   // "small", "medium", "large" or "full".
   function setWindowSize(name) {
-    if (!windowOpen) return
+    if (!windowShown) return
     var sizes = { small: [480, 270], medium: [720, 405], large: [1280, 720] }
     var done = function(data) { root.takeState(data) }
     if (name === "full") { if (!windowFullscreen) windowCommand(["fullscreen"], done) }
     else if (sizes[name]) windowCommand(["size", String(sizes[name][0]), String(sizes[name][1])], done)
   }
 
+  // Hiding keeps the music going. closeWindow() is what stops it.
+  function hideWindow() {
+    if (windowShown) windowCommand(["hide"], function(data) { root.takeState(data) })
+  }
+
+  function showWindow() {
+    if (!windowOpen) { openWindow(); return }
+    if (!windowHidden) return
+    var g = geometry
+    var args = ["show"]
+    if (g) args = args.concat([String(g.x), String(g.y), String(g.w), String(g.h)])
+    windowCommand(args, function(data) { root.takeState(data) })
+  }
+
   function toggleWindow() {
-    windowOpen ? closeWindow() : openWindow()
+    windowShown ? hideWindow() : showWindow()
   }
 
   function pressKey(key) {
@@ -411,7 +494,28 @@ Item {
       loadFeed()
     }
     if (!windowOpen) openWindow()
-    else if (changed) switchWindow()
+    else if (changed) changeInPlace({ cmd: "station", value: key })
+  }
+
+  // Change what the open window plays without reopening it. If the
+  // command cannot be sent, or the window has not moved to the station
+  // asked for a few seconds later, fall back to reopening it.
+  property int changeSerial: 0
+  function changeInPlace(command) {
+    changeSerial += 1
+    var serial = changeSerial
+    remote(command, function(ok) {
+      if (serial !== root.changeSerial) return
+      if (!ok) { root.switchWindow(); return }
+      root.delay(9000, function() {
+        if (serial !== root.changeSerial || !root.windowOpen) return
+        var want = root.stationObject
+        var shown = root.titleInfo ? root.titleInfo.station : ""
+        // Country mixes have names the station list does not know, so
+        // only single stations can be checked.
+        if (want && shown !== "" && !Model.sameText(shown, want.name)) root.switchWindow()
+      })
+    })
   }
 
   // Reopen the window on the current station. Clicking through stations
@@ -425,6 +529,7 @@ Item {
     switching = true
     windowCommand(["switch", address()], function(data) {
       root.takeState(data)
+      root.noteRemote(data)
       root.switching = false
       if (root.switchAgain) { root.switchAgain = false; root.switchWindow() }
     })
@@ -437,6 +542,7 @@ Item {
     } else {
       windowPid = 0
       windowFullscreen = false
+      windowHidden = false
       lyricsFor = ""
       clearLyrics()
     }
@@ -464,7 +570,7 @@ Item {
     if (!titleInfo || !titleInfo.station) return
     // Not while the plugin itself is changing station: the old window is
     // still about for a moment and would pull the choice back.
-    if (switching || Date.now() - stationSetAt < 6000) return
+    if (switching || Date.now() - stationSetAt < 10000) return
     var shown = Model.findStation(stations, titleInfo.station)
     var key = shown ? (shown.slug || shown.id) : ""
     if (key !== "" && key !== station && shown !== stationObject) {
@@ -509,7 +615,8 @@ Item {
     if (!stateLoaded) return
     stateFile.setText(JSON.stringify({
       station: station, barLyrics: barLyrics, videoLyrics: videoLyrics, geometry: geometry,
-      favourites: favourites, live: live, visualiser: visualiser
+      favourites: favourites, live: live, visualiser: visualiser,
+      remoteCode: remoteCode, remoteWindow: remoteWindow
     }, null, 2) + "\n")
   }
 
@@ -520,6 +627,8 @@ Item {
       if (typeof data.barLyrics === "boolean") barLyrics = data.barLyrics
       if (typeof data.videoLyrics === "boolean") videoLyrics = data.videoLyrics
       if (data.geometry && data.geometry.w > 0 && data.geometry.h > 0) geometry = data.geometry
+      if (typeof data.remoteCode === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(data.remoteCode)) remoteCode = data.remoteCode
+      if (typeof data.remoteWindow === "string") remoteWindow = data.remoteWindow
       if (typeof data.live === "boolean") live = data.live
       if (typeof data.visualiser === "boolean") visualiser = data.visualiser
       if (Array.isArray(data.favourites))
@@ -542,6 +651,20 @@ Item {
     onLoadFailed: root.stateLoaded = true
   }
 
+  // Make this install's code once, from the kernel's random numbers.
+  Process {
+    id: makeCode
+    command: ["sh", "-c", "cat /proc/sys/kernel/random/uuid /proc/sys/kernel/random/uuid | tr -d '\\n-'"]
+    running: root.stateLoaded && root.remoteCode === ""
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var code = text.trim().slice(0, 48)
+        if (/^[a-f0-9]{48}$/.test(code)) { root.remoteCode = code; root.saveState() }
+      }
+    }
+  }
+
   Component.onCompleted: loadStations()
 
   // ------------------------------------------------------------ commands
@@ -555,6 +678,9 @@ Item {
     function toggleWindow(): void { root.toggleWindow() }
     function openWindow(): void { root.openWindow() }
     function closeWindow(): void { root.closeWindow() }
+    function showWindow(): void { root.showWindow() }
+    function hideWindow(): void { root.hideWindow() }
+    function stop(): void { root.closeWindow() }
     function playPause(): void { root.playPause() }
     function next(): void { root.next() }
     function previous(): void { root.previous() }
@@ -567,7 +693,7 @@ Item {
     function status(): string {
       return JSON.stringify({
         station: root.station, stationName: root.stationName, song: root.song, artist: root.artist,
-        windowOpen: root.windowOpen, playing: root.playing, live: root.windowLive, lyricLine: root.lyricLine,
+        windowOpen: root.windowOpen, windowShown: root.windowShown, playing: root.playing, live: root.windowLive, lyricLine: root.lyricLine,
         lyricLines: root.lyricLines.length, stations: root.stations.length, error: root.lastError
       })
     }

@@ -260,6 +260,8 @@ function miniHref(base, station, options) {
   } else if (o.video) {
     q.push("v=" + encodeURIComponent(o.video))
   }
+  // The code the plugin sends commands to this window on.
+  if (o.remote) q.push("remote=" + encodeURIComponent(o.remote))
   // Tells the page it is inside the plugin's window (see fullscreenCount).
   q.push("shell=omarchy")
   return base + "?" + q.join("&")

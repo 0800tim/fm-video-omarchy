@@ -5,6 +5,8 @@
 #   fmv-window open <url> [x y w h]    open the window, floating and pinned
 #   fmv-window switch <url>            open it again on a new address, then close the old one
 #   fmv-window close                   close it
+#   fmv-window hide                    put it out of sight, still playing
+#   fmv-window show [x y w h]          bring it back, floating and pinned
 #   fmv-window key <key>               press one of the page's keys (space, N, P, L, M)
 #   fmv-window size <w> <h>            resize it, keeping its top right corner where it is
 #   fmv-window fullscreen              fill the screen, or go back to the small window
@@ -21,6 +23,10 @@ PROFILE_DIR="$STATE_DIR/browser"
 
 # The browser names the window after the page's address:
 # chrome-fm.video__mini-Default
+# Hiding the window moves it to a workspace that is never shown. It keeps
+# playing there.
+HIDDEN_WORKSPACE="special:fmvideo"
+
 CLASS_RE='^[A-Za-z-]+-fm\.video__mini-'
 
 clients() {
@@ -32,7 +38,8 @@ state() {
     if length == 0 then { open: false }
     else .[-1] | { open: true, address: .address, pid: .pid, title: .title,
                    x: .at[0], y: .at[1], w: .size[0], h: .size[1], pinned: .pinned, floating: .floating,
-                   fullscreen: (.fullscreen != 0) }
+                   fullscreen: (.fullscreen != 0),
+                   hidden: ((.workspace.name // "") | startswith("special:fmvideo")) }
     end'
 }
 
@@ -68,7 +75,7 @@ on_a_monitor() {
 # the last launch. With no place given, or one on a screen that has been
 # unplugged, it goes in the top right corner of the screen in use.
 set_rule() {
-  local w="$1" h="$2" x="${3:-}" y="${4:-}"
+  local w="$1" h="$2" x="${3:-}" y="${4:-}" hidden="${5:-}"
   local where='move = { "(monitor_w-window_w-24)", "64" }'
   if is_int "$x" && is_int "$y"; then
     # Rules place a window relative to its screen, so find the screen.
@@ -84,7 +91,14 @@ set_rule() {
     fi
   fi
   local class='^[A-Za-z-]+-fm\\.video__mini-.*'
-  hyprctl eval "if fmvideo_rule then fmvideo_rule:set_enabled(false) end; fmvideo_rule = hl.window_rule({ match = { class = \"$class\" }, float = true, pin = true, no_anim = true, size = { $w, $h }, $where, no_initial_focus = true, tag = \"-default-opacity\", opacity = \"1 1\" })" >/dev/null 2>&1
+  # A window that replaces a hidden one opens hidden too: on the out of
+  # sight workspace, where a window cannot be pinned.
+  local pin="pin = true"
+  if [[ $hidden == true ]]; then
+    pin="workspace = \"$HIDDEN_WORKSPACE silent\""
+    where='move = { "(monitor_w-window_w-24)", "64" }'
+  fi
+  hyprctl eval "if fmvideo_rule then fmvideo_rule:set_enabled(false) end; fmvideo_rule = hl.window_rule({ match = { class = \"$class\" }, float = true, $pin, no_anim = true, size = { $w, $h }, $where, no_initial_focus = true, tag = \"-default-opacity\", opacity = \"1 1\" })" >/dev/null 2>&1
 }
 
 # Plain drag to move the window. See fmv-drag.lua.
@@ -162,10 +176,11 @@ switch)
   [[ $url == https://* ]] || { echo '{"open":false,"error":"bad address"}'; exit 1; }
   old=$(clients | jq -r '[.[].address] | join(" ")')
   read -r x y w h < <(clients | jq -r 'if length == 0 then "x x 480 270" else .[-1] | "\(.at[0]) \(.at[1]) \(.size[0]) \(.size[1])" end')
-  set_rule "$w" "$h" "$x" "$y"
+  hidden=$(state | jq -r '.hidden // false')
+  set_rule "$w" "$h" "$x" "$y" "$hidden"
   launch "$url"
   if address=$(wait_for_new "$old"); then
-    place "$address" "$x" "$y" "$w" "$h"
+    [[ $hidden == true ]] || place "$address" "$x" "$y" "$w" "$h"
     # A window that is still loading can miss a close, so ask until every
     # old one has gone.
     for _ in 1 2 3 4 5 6; do
@@ -192,6 +207,31 @@ key)
   for a in $(clients | jq -r '.[].address'); do
     dispatch "hl.dsp.send_shortcut({ mods = \"\", key = \"$key\", window = \"address:$a\" })"
   done
+  ;;
+hide)
+  read -r address full < <(clients | jq -r 'if length == 0 then "" else .[-1] | "\(.address) \(.fullscreen)" end')
+  [[ -n ${address:-} ]] || { state; exit 0; }
+  if [[ $full != 0 ]]; then
+    dispatch "hl.dsp.window.fullscreen({ window = \"address:$address\", mode = \"fullscreen\" })"
+  fi
+  # A pinned window shows on every workspace, so the pin comes off first.
+  if [[ $(clients | jq -r '.[-1].pinned') == "true" ]]; then
+    dispatch "hl.dsp.window.pin({ window = \"address:$address\", action = \"disable\" })"
+  fi
+  dispatch "hl.dsp.window.move({ window = \"address:$address\", workspace = \"$HIDDEN_WORKSPACE\", follow = false })"
+  state
+  ;;
+show)
+  x="${2:-}" y="${3:-}" w="${4:-480}" h="${5:-270}"
+  is_int "$w" && (( w >= 160 )) || w=480
+  is_int "$h" && (( h >= 90 )) || h=270
+  address=$(clients | jq -r 'if length == 0 then "" else .[-1].address end')
+  [[ -n $address ]] || { state; exit 0; }
+  workspace=$(hyprctl activeworkspace -j | jq -r '.id')
+  is_int "$workspace" || { state; exit 0; }
+  dispatch "hl.dsp.window.move({ window = \"address:$address\", workspace = \"$workspace\", follow = false })"
+  place "$address" "$x" "$y" "$w" "$h"
+  state
   ;;
 size)
   w="${2:-}" h="${3:-}"
@@ -236,7 +276,7 @@ state)
   state
   ;;
 *)
-  echo "usage: fmv-window open <url> [x y w h] | switch <url> | close | key <key> | size <w> <h> | fullscreen | state" >&2
+  echo "usage: fmv-window open <url> [x y w h] | switch <url> | close | hide | show [x y w h] | key <key> | size <w> <h> | fullscreen | state" >&2
   exit 2
   ;;
 esac

@@ -51,11 +51,14 @@ The plugin never edits your Hyprland config or any other file of yours.
 | The song | Left | Opens the panel. |
 | The arrow | Left | Next song. |
 | Anywhere | Right | Opens the panel. |
-| Anywhere | Middle | Opens or closes the video window. |
+| Anywhere | Middle | Shows or hides the video window. The music carries on. |
 
 In the panel:
 
-- **Video window** opens and closes the video.
+- **Show video** shows or hides the video window. Hidden, it keeps playing, so you can have the music without the picture. While you listen live it reads **Show visualiser**.
+- **Stop**, the square button, closes the window and stops the music.
+- **Listen live** plays the station's own broadcast in place of its music videos, for stations that have one.
+- Click a song under **Just played** to watch its video.
 - **Lyrics in the bar** shows the line being sung in place of the song name.
 - **Lyrics on the video** shows the line over the video as well.
 - **Small, Medium, Large, Full screen** set the size of the video window.
@@ -85,7 +88,9 @@ omarchy bar set video.fm.radio maxLength 40
 The plugin answers these commands, so you can bind keys to them in your Hyprland config:
 
 ```bash
-omarchy-shell video.fm.radio toggleWindow
+omarchy-shell video.fm.radio toggleWindow     # show or hide
+omarchy-shell video.fm.radio stop
+omarchy-shell video.fm.radio live true
 omarchy-shell video.fm.radio playPause
 omarchy-shell video.fm.radio next
 omarchy-shell video.fm.radio previous
@@ -104,7 +109,9 @@ There are three pieces.
 2. **The data** comes from the FM.video API: the list of stations, what each one has played, and lyrics.
 3. **The plugin** is the part in this repository. `Service.qml` runs once in the background and holds everything the bar needs. `BarWidget.qml` is what you see in the bar, with its panel. `scripts/fmv-window` opens, sizes and closes the video window. `Model.js` is the logic that needs no desktop, and `tests/model.test.mjs` tests it.
 
-The plugin learns what the window is playing from the window's title, and reads the position in the song from the desktop's media controls (MPRIS) to keep the lyric line in time. Commands such as next go to the page as key presses.
+The plugin learns what the window is playing from the window's title, and reads the position in the song from the desktop's media controls (MPRIS) to keep the lyric line in time. Commands such as next go to the page as key presses. A change of station or song goes through the FM.video server, to a code made up on your machine that only your window listens on.
+
+Hiding the window moves it to a Hyprland workspace that is never shown (`special:fmvideo`). It is still open there, which is why it keeps playing.
 
 The video window has a browser profile of its own, kept apart from your normal browsing.
 
@@ -124,7 +131,7 @@ No code is ever loaded from the network. Only data.
 
 ## What is still rough
 
-- **Changing station restarts the video window.** The new one opens in the same place and the old one closes, which takes about a second.
+- **Changing station happens inside the window**, by a command sent through the FM.video server. If that fails, the plugin reopens the window in the same place, which takes about a second.
 - **The lyric line can run ahead or behind** on some songs, when the video is a different cut from the one the lyrics were timed to. Many songs have no timed lyrics at all, and then the bar shows the song name.
 - **Captions.** YouTube's own captions sometimes show over the video.
 - **An upright bar** (on the left or right edge) shows only the icon. Click it for the panel.
