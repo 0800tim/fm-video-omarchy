@@ -766,8 +766,17 @@ Panel {
         sourceSize.width: width * 3
         sourceSize.height: height * 3
         smooth: true
-        opacity: 0.6
+        opacity: footerMouse.containsMouse ? 1 : 0.6
         source: Qt.resolvedUrl(root.lightPanel ? "assets/fmvideo-lockup-black.svg" : "assets/fmvideo-lockup-white.svg")
+
+        // Click it for the full app, like the button and the mark.
+        MouseArea {
+          id: footerMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: if (root.svc) { root.svc.openApp(); root.close() }
+        }
       }
 
       Text {
