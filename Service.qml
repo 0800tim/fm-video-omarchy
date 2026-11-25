@@ -594,6 +594,7 @@ Item {
   onWindowTitleChanged: {
     var count = Model.fullscreenCount(windowTitle)
     var nx = Model.markerCount(windowTitle, "nx")
+    var pv = Model.markerCount(windowTitle, "pv")
     var app = Model.markerCount(windowTitle, "app")
     if (toplevel !== fullscreenWindow) {
       appSeen = app
