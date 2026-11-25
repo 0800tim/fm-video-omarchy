@@ -59,6 +59,7 @@ Item {
   // ---- Who is looking. Polling slows or stops when nobody is.
   property int widgets: 0
   property int panels: 0
+  property double stationsAt: 0
 
   // ---- The video window.
   readonly property var toplevel: {
@@ -272,7 +273,11 @@ Item {
 
   function loadStations() {
     api("/api/stations", function(status, data) {
-      if (status === 200 && data && data.length) { root.stations = data; root.lastError = ""; root.loadFeed() }
+      if (status === 200 && data && data.length) {
+        var first = root.stations.length === 0
+        root.stations = data; root.stationsAt = Date.now(); root.lastError = ""
+        if (first) root.loadFeed()
+      }
       else { root.lastError = "Could not reach FM.video"; stationsRetry.restart() }
     })
     if (country === "") api("/api/geo", function(status, data) {
@@ -865,9 +870,19 @@ Item {
 
   onPanelsChanged: {
     if (panels > 0) loadLists()
+    // New stations are added often: look again when the panel opens.
+    if (panels > 0 && Date.now() - stationsAt > C.stationsRefreshOpen) loadStations()
     if (panels > 0 && Date.now() - lastFeedAt > 15000) loadFeed()
   }
   onStateLoadedChanged: if (stateLoaded && inList) loadFeed()
+
+  // Pick up new stations without a restart.
+  Timer {
+    interval: C.stationsRefreshIdle
+    repeat: true
+    running: true
+    onTriggered: root.loadStations()
+  }
 
   Timer {
     id: stationsRetry

@@ -21,3 +21,6 @@ var feedIntervalIdle = 120000    // only the bar label is showing
 var defaultStation = "all-nz"
 var defaultWidth = 480
 var defaultHeight = 270
+// How often to look for new stations: when the panel opens, and in the background.
+var stationsRefreshOpen = 300000
+var stationsRefreshIdle = 1800000
