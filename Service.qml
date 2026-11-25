@@ -92,7 +92,7 @@ Item {
   readonly property string artist: windowOpen
     ? (titleInfo ? titleInfo.artist : "")
     : (livePlay ? String(livePlay.artist || "") : "")
-  readonly property var currentPlay: windowOpen ? Model.findPlay(feed, song, artist) : livePlay
+  readonly property var currentPlay: windowOpen ? (feedStation === station ? Model.findPlay(feed, song, artist) : null) : livePlay
   readonly property var recent: feed.slice(0, 5)
 
   // ---- Lyrics.
@@ -407,7 +407,6 @@ Item {
     if (changed) {
       stationSetAt = Date.now()
       station = key
-      feed = []
       saveState()
       loadFeed()
     }
@@ -470,7 +469,6 @@ Item {
     var key = shown ? (shown.slug || shown.id) : ""
     if (key !== "" && key !== station && shown !== stationObject) {
       station = key
-      feed = []
       saveState()
       loadFeed()
     }

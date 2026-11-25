@@ -327,30 +327,31 @@ Panel {
         }
       }
 
+      // Every part of the panel keeps its place and its height whatever it
+      // has to show, so nothing jumps as you click through stations or as
+      // the lyric line changes. An empty line is a blank line, not a gap
+      // that closes up.
       Text {
         width: parent.width
-        visible: text !== ""
         textFormat: Text.PlainText
-        text: root.songText
+        text: root.songText !== "" ? root.songText : " "
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.subtitle
-        wrapMode: Text.WordWrap
-        maximumLineCount: 2
+        maximumLineCount: 1
         elide: Text.ElideRight
       }
 
       Text {
         width: parent.width
-        visible: root.showingLyric
+        visible: root.svc !== null && root.svc.barLyrics && root.windowOpen && !root.windowLive
         textFormat: Text.PlainText
-        text: root.svc ? root.svc.lyricLine : ""
+        text: root.showingLyric ? root.svc.lyricLine : " "
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         font.italic: true
-        wrapMode: Text.WordWrap
-        maximumLineCount: 2
+        maximumLineCount: 1
         elide: Text.ElideRight
       }
 
@@ -394,8 +395,10 @@ Panel {
         onToggled: if (root.svc) root.svc.toggleWindow()
       }
       SwitchRow {
+        // Always there, so the rows below do not shift between stations.
+        // Faded for a station with no broadcast to listen to.
         label: "Listen live"
-        visible: root.svc !== null && root.svc.canLive
+        opacity: root.svc !== null && root.svc.canLive ? 1 : 0.4
         checked: root.svc ? (root.windowOpen ? root.windowLive : root.svc.live) : false
         onToggled: if (root.svc) root.svc.setLive(!checked)
       }
@@ -450,12 +453,10 @@ Panel {
 
       PanelSeparator {
         foreground: root.foreground
-        visible: played.count > 0
       }
 
       PanelSectionHeader {
         text: "JUST PLAYED"
-        visible: played.count > 0
         foreground: root.foreground
         fontFamily: root.fontFamily
       }
@@ -463,18 +464,19 @@ Panel {
       Column {
         width: parent.width
         spacing: 0
-        visible: played.count > 0
 
         Repeater {
           id: played
-          model: root.svc ? root.svc.recent : []
+          // Always five rows, filled or not.
+          model: 5
 
           Item {
             id: playedRow
-            required property var modelData
-            readonly property string video: String(modelData.youTubeVideoId || "")
+            required property int index
+            readonly property var modelData: root.svc && root.svc.recent[index] ? root.svc.recent[index] : null
+            readonly property string video: modelData ? String(modelData.youTubeVideoId || "") : ""
             width: parent.width
-            implicitHeight: playedText.implicitHeight + Style.space(4)
+            implicitHeight: playedTime.implicitHeight + Style.space(4)
 
             Rectangle {
               anchors.fill: parent
@@ -491,7 +493,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
               width: Style.space(64)
               textFormat: Text.PlainText
-              text: Qt.formatTime(new Date(playedRow.modelData.playedOn), "h:mm ap")
+              text: playedRow.modelData ? Qt.formatTime(new Date(playedRow.modelData.playedOn), "h:mm ap") : " "
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -502,7 +504,7 @@ Panel {
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               textFormat: Text.PlainText
-              text: playedRow.modelData.title + " \u00b7 " + playedRow.modelData.artist
+              text: playedRow.modelData ? playedRow.modelData.title + " \u00b7 " + playedRow.modelData.artist : ""
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
