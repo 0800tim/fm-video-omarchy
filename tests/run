@@ -10,6 +10,12 @@ node tests/model.test.mjs
 bash -n scripts/fmv-window
 jq -e . manifest.json >/dev/null
 
+# The marketplace refuses a description over 500 letters, and a few other
+# fields over their own limits.
+jq -e '(.description | length) <= 500 and (.name | length) <= 120 and (.author | length) <= 120
+  and (.version | length) <= 64 and (.id | length) <= 128 and (.id == (.id | ascii_downcase))' manifest.json >/dev/null \
+  || { echo "manifest.json: a field is too long for the marketplace, or the id is not lower case" >&2; exit 1; }
+
 if command -v omarchy >/dev/null 2>&1; then
   omarchy plugin validate .
 fi
