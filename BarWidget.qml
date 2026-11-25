@@ -222,7 +222,11 @@ Panel {
 
   property string query: ""
   property int cursor: -1
-  readonly property var rows: svc ? Model.stationRows(svc.stations, svc.country, query, svc.favourites) : []
+  // "stations", "channels", "sets" or "playlists".
+  property string tab: "stations"
+  readonly property var rows: !svc ? []
+    : tab === "stations" ? Model.stationRows(svc.stations, svc.country, query, svc.favourites)
+    : Model.listRows(tab, svc.channels, svc.playlists, query)
 
   function moveCursor(step) {
     var at = cursor
@@ -243,7 +247,11 @@ Panel {
     if (!svc || !key) return
     // The panel stays open, so you can click through stations and see what
     // each is playing. Click outside it, or press Escape, to close it.
-    svc.setStation(key)
+    var at = key.indexOf(":")
+    if (tab === "stations" || at < 0) { svc.setStation(key); return }
+    var name = ""
+    for (var i = 0; i < rows.length; i++) if (rows[i].key === key) { name = rows[i].label; break }
+    svc.setList(key.slice(0, at), key.slice(at + 1), name)
   }
 
   component SwitchRow: Item {
@@ -301,6 +309,39 @@ Panel {
           : !root.windowOpen ? "ON AIR NOW" : !root.playing ? "PAUSED" : root.windowLive ? "LIVE" : "PLAYING"
         foreground: root.foreground
         fontFamily: root.fontFamily
+        // The FM.video mark, top right. Click it for the full app.
+        trailingControl: Component {
+          Item {
+            implicitWidth: mark.implicitWidth
+            implicitHeight: mark.implicitHeight
+
+            Row {
+              id: mark
+              Text {
+                textFormat: Text.PlainText
+                text: "FM"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.title
+                font.bold: true
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: ".video"
+                color: "#ff2e9a"
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.title
+                font.bold: true
+              }
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.svc) { root.svc.openApp(); root.close() }
+            }
+          }
+        }
         iconComponent: Component {
           Item {
             implicitWidth: Style.space(40)
@@ -386,6 +427,15 @@ Panel {
           onClicked: root.svc.next()
         }
         PanelActionButton {
+          visible: !root.windowLive
+          iconText: root.glyphHeartOutline
+          tooltipText: "Add this song to your FM.video favourites"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          onClicked: root.svc.favouriteSong()
+        }
+        PanelActionButton {
           iconText: root.glyphStop
           tooltipText: "Stop and close"
           foreground: root.foreground
@@ -460,7 +510,7 @@ Panel {
       }
 
       PanelSectionHeader {
-        text: "JUST PLAYED"
+        text: root.svc && root.svc.inList ? "IN THIS LIST" : "JUST PLAYED"
         foreground: root.foreground
         fontFamily: root.fontFamily
       }
@@ -478,7 +528,7 @@ Panel {
             id: playedRow
             required property int index
             readonly property var modelData: root.svc && root.svc.recent[index] ? root.svc.recent[index] : null
-            readonly property string video: modelData ? String(modelData.youTubeVideoId || "") : ""
+            readonly property string video: modelData && root.svc && !root.svc.inList ? String(modelData.youTubeVideoId || "") : ""
             width: parent.width
             implicitHeight: playedTime.implicitHeight + Style.space(4)
 
@@ -497,7 +547,8 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
               width: Style.space(64)
               textFormat: Text.PlainText
-              text: playedRow.modelData ? Qt.formatTime(new Date(playedRow.modelData.playedOn), "h:mm ap") : " "
+              text: !playedRow.modelData ? " " : playedRow.modelData.playedOn
+                ? Qt.formatTime(new Date(playedRow.modelData.playedOn), "h:mm ap") : String(playedRow.index + 1)
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -530,10 +581,25 @@ Panel {
 
       PanelSeparator { foreground: root.foreground }
 
+      ButtonGroup {
+        options: [
+          { value: "stations", label: "Stations" },
+          { value: "channels", label: "Channels" },
+          { value: "sets", label: "Live sets" },
+          { value: "playlists", label: "Playlists" }
+        ]
+        value: root.tab
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        focusable: false
+        onChanged: function(v) { root.tab = v; root.cursor = -1; stationList.positionViewAtBeginning() }
+      }
+
       TextField {
         id: search
         width: parent.width
-        placeholderText: "Search stations"
+        placeholderText: root.tab === "stations" ? "Search stations" : root.tab === "channels" ? "Search channels"
+          : root.tab === "sets" ? "Search festivals and live sets" : "Search playlists"
         foreground: root.foreground
         font.family: root.fontFamily
         onTextChanged: { root.query = text; root.cursor = -1 }
@@ -556,7 +622,8 @@ Panel {
           required property var modelData
           required property int index
           readonly property bool heading: modelData.kind === "heading"
-          readonly property bool current: !heading && root.svc !== null && root.svc.station === modelData.key
+          readonly property bool current: !heading && root.svc !== null
+            && (modelData.list === true ? root.svc.feedOwner === modelData.key : !root.svc.inList && root.svc.station === modelData.key)
           readonly property bool hot: !heading && (rowMouse.containsMouse || heartMouse.containsMouse || root.cursor === index)
 
           width: ListView.view.width
@@ -618,9 +685,9 @@ Panel {
             anchors.right: parent.right
             anchors.rightMargin: Style.space(8)
             anchors.verticalCenter: parent.verticalCenter
-            width: stationRow.heading ? 0 : Style.space(18)
+            width: stationRow.heading || stationRow.modelData.list === true ? 0 : Style.space(18)
             horizontalAlignment: Text.AlignHCenter
-            visible: !stationRow.heading
+            visible: !stationRow.heading && stationRow.modelData.list !== true
             opacity: on || heartMouse.containsMouse ? 1 : stationRow.hot ? 0.45 : 0
             textFormat: Text.PlainText
             text: on ? root.glyphHeart : root.glyphHeartOutline
@@ -667,7 +734,7 @@ Panel {
         width: parent.width
         visible: root.rows.length === 0
         textFormat: Text.PlainText
-        text: root.svc && root.svc.stations.length === 0 ? "Loading stations" : "No stations match"
+        text: root.query !== "" ? "Nothing matches" : "Loading"
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall

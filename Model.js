@@ -282,14 +282,18 @@ function logoUrl(siteBase, station) {
 }
 
 // The address of the mini player. `options` may hold lyrics, live (play
-// the station's own broadcast), visualiser and video (a YouTube id to
-// start with).
+// the station's own broadcast), video (a YouTube id to start with), remote
+// (the code commands are sent on) and list ({ kind, value }: a channel, a
+// playlist or the listener's favourites, played in place of a station).
 function miniHref(base, station, options) {
   var o = options || {}
   var q = []
-  if (station) q.push("station=" + encodeURIComponent(station))
+  var list = o.list && o.list.kind ? o.list : null
+  if (list && list.kind === "favourites") q.push("favourites=1")
+  else if (list) q.push(list.kind + "=" + encodeURIComponent(list.value))
+  else if (station) q.push("station=" + encodeURIComponent(station))
   if (o.lyrics) q.push("lyrics=1")
-  if (o.live) {
+  if (o.live && !list) {
     q.push("live=1")
     if (o.visualiser === false) q.push("viz=0")
   } else if (o.video) {
@@ -300,4 +304,76 @@ function miniHref(base, station, options) {
   // Tells the page it is inside the plugin's window (see fullscreenCount).
   q.push("shell=omarchy")
   return base + "?" + q.join("&")
+}
+
+// The page on the full site for what is playing.
+function siteHref(base, station, options) {
+  var o = options || {}
+  var list = o.list && o.list.kind ? o.list : null
+  if (list && list.kind === "favourites") return base + "/favourites"
+  if (list && list.kind === "playlist") return base + "/playlist/" + encodeURIComponent(list.value)
+  if (list && list.kind === "channel") return base + "/c/" + encodeURIComponent(list.value)
+  if (!station) return base
+  return base + "/station/" + encodeURIComponent(station) + (o.live ? "?live=1" : "")
+}
+
+// A channel's or playlist's songs in the shape of a station's plays.
+function listTracks(kind, data) {
+  var raw = kind === "playlist" ? (data && data.items) : (data && data.tracks)
+  var out = []
+  for (var i = 0; raw && i < raw.length; i++) {
+    var t = raw[i]
+    out.push({
+      title: String(t.title || ""), artist: String(t.artist || ""),
+      youTubeVideoId: t.youTubeVideoId || t.youtube_video_id || "",
+      songId: t.songId || t.song_id || null,
+      isExplicit: t.isExplicit === true, playedOn: null
+    })
+  }
+  return out
+}
+
+function matchesWords(text, words) {
+  var hay = String(text || "").toLowerCase()
+  for (var w = 0; w < words.length; w++) if (hay.indexOf(words[w]) === -1) return false
+  return true
+}
+
+// Rows for the other tabs of the picker. `tab` is "channels" (styles and
+// decades), "sets" (festivals, venues and live sessions) or "playlists".
+// A row's key is "channel:pop", "playlist:abc" or "favourites:".
+function listRows(tab, channels, playlists, query) {
+  var words = String(query || "").toLowerCase().split(/\s+/).filter(function(w) { return w !== "" })
+  var rows = []
+  var group = function(heading, items) {
+    if (!items.length) return
+    rows.push({ kind: "heading", label: heading, key: "" })
+    rows = rows.concat(items)
+  }
+  var count = function(n) { return n > 0 ? n + (n === 1 ? " song" : " songs") : "" }
+  var channelRow = function(c) {
+    return { kind: "station", label: c.name, detail: count(c.trackCount || 0), key: "channel:" + c.slug, list: true }
+  }
+  var list = (channels || []).filter(function(c) {
+    return c && c.slug && matchesWords(c.name + " " + (c.description || ""), words)
+  })
+
+  if (tab === "channels") {
+    group("Styles", list.filter(function(c) { return c.kind === "channel" }).map(channelRow))
+    group("Decades", list.filter(function(c) { return c.kind === "era" }).map(channelRow))
+  } else if (tab === "sets") {
+    var sets = list.filter(function(c) { return c.kind === "list" })
+    group("Festivals by style", sets.filter(function(c) { return c.slug.indexOf("festivals") === 0 }).map(channelRow))
+    group("Festivals, venues and sessions", sets.filter(function(c) { return c.slug.indexOf("festivals") !== 0 }).map(channelRow))
+  } else if (tab === "playlists") {
+    if (matchesWords("your favourites", words))
+      group("Yours", [{ kind: "station", label: "Your favourites", detail: "sign in on the video", key: "favourites:", list: true }])
+    group("Trending playlists", (playlists || []).filter(function(p) {
+      return p && p.share_slug && matchesWords(p.name + " " + (p.description || "") + " " + ((p.genres || []).join(" ")), words)
+    }).map(function(p) {
+      var by = p.curator && p.curator.display_name ? "by " + p.curator.display_name : count(p.track_count || 0)
+      return { kind: "station", label: p.name, detail: by, key: "playlist:" + p.share_slug, list: true }
+    }))
+  }
+  return rows
 }

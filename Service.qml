@@ -22,6 +22,16 @@ Item {
   property bool videoLyrics: false            // show the lyric line over the video
   property var geometry: null                 // { x, y, w, h } of the video window
   property var favourites: []                 // station keys, in the order they were added
+  // A channel, a playlist or the listener's favourites, played in place of
+  // a station. listKind is "" for radio.
+  property string listKind: ""
+  property string listValue: ""
+  property string listName: ""
+  readonly property bool inList: listKind !== ""
+  readonly property string feedOwner: inList ? listKind + ":" + listValue : station
+  property var channels: []
+  property var playlists: []
+  property bool listsLoaded: false
   property bool live: false                   // play the station's own broadcast, not the videos
   property bool visualiser: false             // draw the visualiser while live (heavy on the processor)
   // Commands reach an open window through the FM.video server, on a code
@@ -65,7 +75,7 @@ Item {
   // layout and back on every station change while listening live.
   readonly property bool windowLive: titleInfo && titleInfo.song !== ""
     ? titleInfo.live === true : (windowOpen && live && canLive)
-  readonly property bool canLive: stationObject !== null && String(stationObject.streamUrl || "") !== ""
+  readonly property bool canLive: !inList && stationObject !== null && String(stationObject.streamUrl || "") !== ""
   property int windowPid: 0
   property bool opening: false
   property bool windowFullscreen: false
@@ -97,17 +107,18 @@ Item {
   // ---- What to show.
   readonly property string stationName: {
     if (titleInfo && titleInfo.station) return titleInfo.station
+    if (inList) return listName
     return Model.stationLabel(stations, station)
   }
-  readonly property var stationObject: Model.findStation(stations, station)
-  readonly property var livePlay: feed.length > 0 && feedStation === station ? feed[0] : null
+  readonly property var stationObject: inList ? null : Model.findStation(stations, station)
+  readonly property var livePlay: !inList && feed.length > 0 && feedStation === station ? feed[0] : null
   readonly property string song: windowOpen
     ? (titleInfo ? titleInfo.song : "")
     : (livePlay ? String(livePlay.title || "") : "")
   readonly property string artist: windowOpen
     ? (titleInfo ? titleInfo.artist : "")
     : (livePlay ? String(livePlay.artist || "") : "")
-  readonly property var currentPlay: windowOpen ? (feedStation === station ? Model.findPlay(feed, song, artist) : null) : livePlay
+  readonly property var currentPlay: windowOpen ? (feedStation === feedOwner ? Model.findPlay(feed, song, artist) : null) : livePlay
   readonly property var recent: feed.slice(0, 5)
 
   // ---- Lyrics.
@@ -189,12 +200,43 @@ Item {
 
   function loadFeed() {
     if (!stateLoaded) return
+    if (inList) { loadListTracks(); return }
     var wanted = station
     lastFeedAt = Date.now()
     api("/api/feed/" + encodeURIComponent(feedKey()) + "/20", function(status, data) {
-      if (wanted !== root.station) return
+      if (wanted !== root.station || root.inList) return
       if (status === 200 && data) { root.feed = data; root.feedStation = wanted; root.lastError = "" }
       else if (status !== 429) root.lastError = "Could not reach FM.video"
+    })
+  }
+
+  // The songs in the channel or playlist being played, so the song on now
+  // can be found in it for its lyrics. Asked for once, not on a timer.
+  function loadListTracks() {
+    var owner = feedOwner
+    if (feedStation === owner) return
+    lastFeedAt = Date.now()
+    var path = listKind === "channel" ? "/api/channels/" + encodeURIComponent(listValue) + "/feed?count=50"
+      : listKind === "playlist" ? "/api/playlists/pub/" + encodeURIComponent(listValue) : ""
+    if (path === "") { feed = []; feedStation = owner; return }
+    var kind = listKind
+    api(path, function(status, data) {
+      if (owner !== root.feedOwner) return
+      if (status === 200 && data) { root.feed = Model.listTracks(kind, data); root.feedStation = owner }
+    })
+  }
+
+  // What the other tabs of the picker list. Asked for the first time a
+  // panel opens.
+  function loadLists() {
+    if (listsLoaded) return
+    listsLoaded = true
+    api("/api/channels", function(status, data) {
+      if (status === 200 && data && data.channels) root.channels = data.channels
+      else root.listsLoaded = false
+    })
+    api("/api/playlists/discover?sort=trending&limit=40", function(status, data) {
+      if (status === 200 && data && data.items) root.playlists = data.items
     })
   }
 
@@ -240,8 +282,9 @@ Item {
     // One song has several recordings, each timed apart. Asking by video,
     // with the video's real length, gets the lines timed for this cut.
     var seconds = player && player.length > 0 ? Math.round(player.length) : 0
-    var path = "/api/lyrics/video/" + encodeURIComponent(video) + "?song=" + encodeURIComponent(play.songId)
-    if (seconds >= 20) path += "&d=" + seconds
+    var path = "/api/lyrics/video/" + encodeURIComponent(video) + "?"
+    if (play.songId) path += "song=" + encodeURIComponent(play.songId) + "&"
+    if (seconds >= 20) path += "d=" + seconds
 
     api(path, function(status, data) {
       if (root.lyricsFor !== video) return
@@ -331,7 +374,8 @@ Item {
 
   function address(video) {
     return Model.miniHref(C.miniUrl, station, {
-      lyrics: videoLyrics, live: live && canLive, video: video || "", remote: remoteCode
+      lyrics: videoLyrics, live: live && canLive, video: video || "", remote: remoteCode,
+      list: inList ? { kind: listKind, value: listValue } : null
     })
   }
 
@@ -340,7 +384,10 @@ Item {
     video = String(video || "")
     if (!/^[A-Za-z0-9_-]{6,20}$/.test(video)) return
     if (live) { live = false; saveState() }
-    var url = Model.miniHref(C.miniUrl, station, { lyrics: videoLyrics, video: video, remote: remoteCode })
+    var url = Model.miniHref(C.miniUrl, station, {
+      lyrics: videoLyrics, video: video, remote: remoteCode,
+      list: inList ? { kind: listKind, value: listValue } : null
+    })
     var done = function(data) { root.opening = false; root.takeState(data); root.noteRemote(data) }
     if (windowOpen) {
       remote({ cmd: "video", value: video }, function(ok) {
@@ -493,11 +540,13 @@ Item {
   // launcher for it with Omarchy's web app installer.
   property bool appInstalled: false
   function openApp() {
-    var s = stationObject
-    var url = C.siteBase + (s && s.slug ? "/station/" + encodeURIComponent(s.slug) : "")
     // The site plays by itself when it opens, so say which it should play,
     // and stop the mini player so the two do not play over each other.
-    if (s && s.slug && windowLive) url += "?live=1"
+    var s = stationObject
+    var key = inList ? "" : s ? (s.slug || s.id) : Model.mixCountry(station) !== "" ? station : ""
+    var url = Model.siteHref(C.siteBase, key, {
+      live: windowLive, list: inList ? { kind: listKind, value: listValue } : null
+    })
     appRun.command = [helper, "app", url]
     appRun.running = true
     closeWindow()
@@ -517,15 +566,45 @@ Item {
   function setStation(key) {
     key = String(key || "")
     if (key === "") return
-    var changed = key !== station
+    var changed = key !== station || inList
     if (changed) {
       stationSetAt = Date.now()
+      listKind = ""
+      listValue = ""
+      listName = ""
       station = key
       saveState()
       loadFeed()
     }
     if (!windowOpen) openWindow()
     else if (changed) changeInPlace({ cmd: "station", value: key })
+  }
+
+  // Play a channel, a playlist or the listener's favourites.
+  function setList(kind, value, name) {
+    kind = String(kind || "")
+    value = String(value || "")
+    if (["channel", "playlist", "favourites"].indexOf(kind) === -1) return
+    if (kind !== "favourites" && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(value)) return
+    var changed = kind !== listKind || value !== listValue
+    if (changed) {
+      stationSetAt = Date.now()
+      listKind = kind
+      listValue = kind === "favourites" ? "" : value
+      listName = String(name || (kind === "favourites" ? "Your favourites" : value))
+      if (live) live = false
+      saveState()
+      loadFeed()
+    }
+    if (!windowOpen) openWindow()
+    else if (changed) changeInPlace(kind === "favourites" ? { cmd: "favourites" } : { cmd: kind, value: value })
+  }
+
+  // Add the song on now to the listener's favourites on FM.video, or take
+  // it out. Signing in, if needed, happens in the video window.
+  function favouriteSong() {
+    if (!windowOpen) return
+    remote({ cmd: "favourite" }, function(ok) { if (!ok) root.pressKey("H") })
   }
 
   // Change what the open window plays without reopening it. If the
@@ -540,6 +619,7 @@ Item {
       if (!ok) { root.switchWindow(); return }
       root.delay(9000, function() {
         if (serial !== root.changeSerial || !root.windowOpen) return
+        if (root.inList) return
         var want = root.stationObject
         var shown = root.titleInfo ? root.titleInfo.station : ""
         // Country mixes have names the station list does not know, so
@@ -621,7 +701,10 @@ Item {
     if (switching || Date.now() - stationSetAt < 10000) return
     var shown = Model.findStation(stations, titleInfo.station)
     var key = shown ? (shown.slug || shown.id) : ""
-    if (key !== "" && key !== station && shown !== stationObject) {
+    if (key !== "" && (inList || (key !== station && shown !== stationObject))) {
+      listKind = ""
+      listValue = ""
+      listName = ""
       station = key
       saveState()
       loadFeed()
@@ -642,12 +725,16 @@ Item {
     id: feedTimer
     interval: root.windowOpen || root.panels > 0 ? C.feedIntervalActive : C.feedIntervalIdle
     repeat: true
-    running: root.stateLoaded && (root.windowOpen || root.widgets > 0)
+    running: root.stateLoaded && (root.windowOpen || root.widgets > 0) && !root.inList
     triggeredOnStart: true
     onTriggered: root.loadFeed()
   }
 
-  onPanelsChanged: if (panels > 0 && Date.now() - lastFeedAt > 15000) loadFeed()
+  onPanelsChanged: {
+    if (panels > 0) loadLists()
+    if (panels > 0 && Date.now() - lastFeedAt > 15000) loadFeed()
+  }
+  onStateLoadedChanged: if (stateLoaded && inList) loadFeed()
 
   Timer {
     id: stationsRetry
@@ -664,7 +751,8 @@ Item {
     stateFile.setText(JSON.stringify({
       station: station, barLyrics: barLyrics, videoLyrics: videoLyrics, geometry: geometry,
       favourites: favourites, live: live, visualiser: visualiser,
-      remoteCode: remoteCode, remoteWindow: remoteWindow
+      remoteCode: remoteCode, remoteWindow: remoteWindow,
+      listKind: listKind, listValue: listValue, listName: listName
     }, null, 2) + "\n")
   }
 
@@ -677,6 +765,12 @@ Item {
       if (data.geometry && data.geometry.w > 0 && data.geometry.h > 0) geometry = data.geometry
       if (typeof data.remoteCode === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(data.remoteCode)) remoteCode = data.remoteCode
       if (typeof data.remoteWindow === "string") remoteWindow = data.remoteWindow
+      if (["channel", "playlist", "favourites"].indexOf(data.listKind) !== -1 && typeof data.listValue === "string"
+          && (data.listKind === "favourites" || /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(data.listValue))) {
+        listKind = data.listKind
+        listValue = data.listValue
+        listName = typeof data.listName === "string" ? data.listName.slice(0, 80) : data.listValue
+      }
       if (typeof data.live === "boolean") live = data.live
       if (typeof data.visualiser === "boolean") visualiser = data.visualiser
       if (Array.isArray(data.favourites))
@@ -734,6 +828,10 @@ Item {
     function next(): void { root.next() }
     function previous(): void { root.previous() }
     function station(key: string): void { root.setStation(key) }
+    function channel(slug: string): void { root.setList("channel", slug, "") }
+    function playlist(slug: string): void { root.setList("playlist", slug, "") }
+    function favourites(): void { root.setList("favourites", "", "") }
+    function favouriteSong(): void { root.favouriteSong() }
     function size(name: string): void { root.setWindowSize(name) }
     function live(on: bool): void { root.setLive(on) }
     function visualiser(on: bool): void { root.setVisualiser(on) }
@@ -741,7 +839,7 @@ Item {
     function videoLyrics(on: bool): void { root.setVideoLyrics(on) }
     function status(): string {
       return JSON.stringify({
-        station: root.station, stationName: root.stationName, song: root.song, artist: root.artist,
+        station: root.station, list: root.feedOwner, stationName: root.stationName, song: root.song, artist: root.artist,
         windowOpen: root.windowOpen, windowShown: root.windowShown, playing: root.playing, live: root.windowLive, lyricLine: root.lyricLine,
         lyricLines: root.lyricLines.length, stations: root.stations.length, error: root.lastError
       })

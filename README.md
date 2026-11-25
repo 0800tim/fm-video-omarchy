@@ -8,6 +8,7 @@ Radio with music videos, on your desktop. This plugin puts [FM.video](https://fm
 
 - **The song in your bar.** The song a station is playing now, with play, pause and next.
 - **A panel of stations.** Click the song for over 200 stations, grouped by country: yours first, then your neighbours, then the countries with the most stations. Type to search by name, style, city or country. Click the heart on a station to keep it at the top.
+- **Channels, live sets and playlists.** Tabs beside the station list: music by style and decade, thousands of hours of festival and concert sets, and playlists other people have made.
 - **A small video window.** The station's music videos play in a little window that floats on top of your other windows and follows you to every workspace.
 - **Karaoke in the bar.** When a song has timed lyrics, the bar shows the line being sung, in time with the video, and the words light up as they are sung.
 
@@ -64,6 +65,9 @@ In the panel:
 - **Lyrics on the video** shows the line over the video as well.
 - **Small, Medium, Large, Full screen** set the size of the video window.
 - Pick a station to switch to it. Type to search, use the up and down arrows, and press Enter.
+- **Channels**, **Live sets** and **Playlists** are tabs above the search box. Pick one to play it in place of a station. Under Playlists, **Your favourites** plays the songs you have hearted on FM.video.
+- The heart button beside play and next adds the song on now to your FM.video favourites. The first time, FM.video asks you to sign in, inside the video window. The plugin never sees your sign in.
+- Click **FM.video**, top right, to open the full app.
 - Point at a station and click its heart to make it a favourite. Favourites are listed first. Click the heart again to take it off.
 
 To move the video window, drag it. To resize it, hold Super and drag with the right button. It opens in the same place next time.
@@ -96,6 +100,9 @@ omarchy-shell video.fm.radio playPause
 omarchy-shell video.fm.radio next
 omarchy-shell video.fm.radio previous
 omarchy-shell video.fm.radio station george
+omarchy-shell video.fm.radio channel glastonbury
+omarchy-shell video.fm.radio playlist <its share code>
+omarchy-shell video.fm.radio favourites
 omarchy-shell video.fm.radio size medium     # small, medium, large or full
 omarchy-shell video.fm.radio barLyrics true
 omarchy-shell video.fm.radio videoLyrics false

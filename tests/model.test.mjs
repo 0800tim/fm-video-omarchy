@@ -218,6 +218,48 @@ test("window title: next and previous station counters", () => {
   assert.equal(t.live, true)
 })
 
+test("addresses for channels, playlists and favourites", () => {
+  const base = "https://fm.video/mini"
+  assert.equal(Model.miniHref(base, "george", { list: { kind: "channel", value: "glastonbury" } }), base + "?channel=glastonbury&shell=omarchy")
+  assert.equal(Model.miniHref(base, "george", { list: { kind: "playlist", value: "imp-kbqtxp6" }, lyrics: true, live: true }), base + "?playlist=imp-kbqtxp6&lyrics=1&shell=omarchy")
+  assert.equal(Model.miniHref(base, "", { list: { kind: "favourites", value: "" } }), base + "?favourites=1&shell=omarchy")
+  const site = "https://fm.video"
+  assert.equal(Model.siteHref(site, "george", {}), site + "/station/george")
+  assert.equal(Model.siteHref(site, "george", { live: true }), site + "/station/george?live=1")
+  assert.equal(Model.siteHref(site, "all-nz", {}), site + "/station/all-nz")
+  assert.equal(Model.siteHref(site, "george", { list: { kind: "channel", value: "pop" } }), site + "/c/pop")
+  assert.equal(Model.siteHref(site, "george", { list: { kind: "playlist", value: "x1" } }), site + "/playlist/x1")
+  assert.equal(Model.siteHref(site, "", { list: { kind: "favourites", value: "" } }), site + "/favourites")
+  assert.equal(Model.siteHref(site, "", {}), site)
+})
+
+test("list rows: channels, live sets and playlists", () => {
+  const channels = [
+    { slug: "pop", name: "Pop", kind: "channel", trackCount: 7890 },
+    { slug: "era-90s", name: "The 90s", kind: "era", trackCount: 1 },
+    { slug: "festivals-rock", name: "Rock festivals", kind: "list", trackCount: 40 },
+    { slug: "glastonbury", name: "Glastonbury", kind: "list", description: "Worthy Farm", trackCount: 300 },
+  ]
+  const playlists = [{ name: "Today's Top Hits", share_slug: "imp-1", track_count: 50, curator: { display_name: "tim" } }]
+  const keys = (rows) => rows.filter((r) => r.kind === "station").map((r) => r.key)
+  assert.deepEqual(keys(Model.listRows("channels", channels, playlists, "")), ["channel:pop", "channel:era-90s"])
+  assert.deepEqual(keys(Model.listRows("sets", channels, playlists, "")), ["channel:festivals-rock", "channel:glastonbury"])
+  assert.deepEqual(keys(Model.listRows("sets", channels, playlists, "worthy")), ["channel:glastonbury"])
+  assert.deepEqual(keys(Model.listRows("playlists", channels, playlists, "")), ["favourites:", "playlist:imp-1"])
+  assert.deepEqual(keys(Model.listRows("playlists", channels, playlists, "top")), ["playlist:imp-1"])
+  const rows = Model.listRows("channels", channels, playlists, "")
+  assert.equal(rows[1].detail, "7890 songs")
+  assert.equal(rows[3].detail, "1 song")
+})
+
+test("listTracks reads channel feeds and playlists alike", () => {
+  const a = Model.listTracks("channel", { tracks: [{ title: "T", artist: "A", youTubeVideoId: "abc", durationInSeconds: 9 }] })
+  assert.deepEqual([a[0].title, a[0].youTubeVideoId, a[0].songId], ["T", "abc", null])
+  const b = Model.listTracks("playlist", { items: [{ title: "T", artist: "A", youtube_video_id: "xyz", song_id: 7 }] })
+  assert.deepEqual([b[0].youTubeVideoId, b[0].songId], ["xyz", 7])
+  assert.deepEqual(Model.listTracks("channel", null), [])
+})
+
 test("toggleFavourite adds and removes", () => {
   assert.deepEqual(Model.toggleFavourite([], "zm"), ["zm"])
   assert.deepEqual(Model.toggleFavourite(["zm", "george"], "zm"), ["george"])
