@@ -304,6 +304,7 @@ function miniHref(base, station, options) {
   else if (list) q.push(list.kind + "=" + encodeURIComponent(list.value))
   else if (station) q.push("station=" + encodeURIComponent(station))
   if (o.lyrics) q.push("lyrics=1")
+  if (o.style && o.style !== "plain") q.push("style=" + encodeURIComponent(o.style))
   if (o.live && !list) {
     q.push("live=1")
     if (o.visualiser === false) q.push("viz=0")
@@ -315,6 +316,15 @@ function miniHref(base, station, options) {
   // Tells the page it is inside the plugin's window (see fullscreenCount).
   q.push("shell=omarchy")
   return base + "?" + q.join("&")
+}
+
+// The looks the page can give its lyric line, in the order they cycle.
+var lyricStyles = ["plain", "dots", "blocks", "sparkle", "explode", "outline", "typewriter", "wave"]
+
+function nextLyricStyle(current, step) {
+  var at = lyricStyles.indexOf(current)
+  if (at < 0) at = 0
+  return lyricStyles[((at + step) % lyricStyles.length + lyricStyles.length) % lyricStyles.length]
 }
 
 // The page on the full site for what is playing.

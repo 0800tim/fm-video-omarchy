@@ -475,6 +475,38 @@ Panel {
         onToggled: if (root.svc) root.svc.setVideoLyrics(!root.svc.videoLyrics)
       }
 
+      // The look of the lyric line on the video. Click for the next one,
+      // right click for the one before.
+      Item {
+        visible: !root.windowLive
+        width: parent.width
+        implicitHeight: styleButton.implicitHeight
+
+        Text {
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          text: "Lyric style"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+        }
+
+        Button {
+          id: styleButton
+          anchors.right: parent.right
+          width: Style.space(130)
+          readonly property string style: root.svc ? root.svc.lyricStyle : "plain"
+          text: style.charAt(0).toUpperCase() + style.slice(1)
+          tooltipText: "Click for the next style"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          bordered: true
+          onClicked: if (root.svc) root.svc.setLyricStyle(Model.nextLyricStyle(style, 1))
+          onRightClicked: if (root.svc) root.svc.setLyricStyle(Model.nextLyricStyle(style, -1))
+        }
+      }
+
       Column {
         width: parent.width
         spacing: Style.space(6)

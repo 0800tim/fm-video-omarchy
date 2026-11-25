@@ -20,6 +20,7 @@ Item {
   property string station: C.defaultStation   // a slug, an id or a mix such as "all-nz"
   property bool barLyrics: true               // show the lyric line in the bar
   property bool videoLyrics: false            // show the lyric line over the video
+  property string lyricStyle: "plain"         // the look of the lyric line on the video
   property var geometry: null                 // { x, y, w, h } of the video window
   property var favourites: []                 // station keys, in the order they were added
   // A channel, a playlist or the listener's favourites, played in place of
@@ -383,7 +384,7 @@ Item {
 
   function address(video) {
     return Model.miniHref(C.miniUrl, station, {
-      lyrics: videoLyrics, live: live && canLive, video: video || "", remote: remoteCode,
+      lyrics: videoLyrics, style: lyricStyle, live: live && canLive, video: video || "", remote: remoteCode,
       list: inList ? { kind: listKind, value: listValue } : null
     })
   }
@@ -394,7 +395,7 @@ Item {
     if (!/^[A-Za-z0-9_-]{6,20}$/.test(video)) return
     if (live) { live = false; saveState() }
     var url = Model.miniHref(C.miniUrl, station, {
-      lyrics: videoLyrics, video: video, remote: remoteCode,
+      lyrics: videoLyrics, style: lyricStyle, video: video, remote: remoteCode,
       list: inList ? { kind: listKind, value: listValue } : null
     })
     var done = function(data) { root.opening = false; root.takeState(data); root.noteRemote(data) }
@@ -530,6 +531,16 @@ Item {
     videoLyrics = on
     saveState()
     pressKey("L")
+  }
+
+  // The look of the lyric line on the video. Choosing one turns the
+  // lyrics on, as it does on the page.
+  function setLyricStyle(style) {
+    if (Model.lyricStyles.indexOf(style) === -1) return
+    lyricStyle = style
+    videoLyrics = true
+    saveState()
+    if (windowOpen) remote({ cmd: "style", value: style }, function(ok) {})
   }
 
   function setBarLyrics(on) {
@@ -781,7 +792,7 @@ Item {
       station: station, barLyrics: barLyrics, videoLyrics: videoLyrics, geometry: geometry,
       favourites: favourites, live: live, visualiser: visualiser,
       remoteCode: remoteCode, remoteWindow: remoteWindow,
-      listKind: listKind, listValue: listValue, listName: listName
+      listKind: listKind, listValue: listValue, listName: listName, lyricStyle: lyricStyle
     }, null, 2) + "\n")
   }
 
@@ -800,6 +811,7 @@ Item {
         listValue = data.listValue
         listName = typeof data.listName === "string" ? data.listName.slice(0, 80) : data.listValue
       }
+      if (Model.lyricStyles.indexOf(data.lyricStyle) !== -1) lyricStyle = data.lyricStyle
       if (typeof data.live === "boolean") live = data.live
       if (typeof data.visualiser === "boolean") visualiser = data.visualiser
       if (Array.isArray(data.favourites))
@@ -864,6 +876,7 @@ Item {
     function size(name: string): void { root.setWindowSize(name) }
     function live(on: bool): void { root.setLive(on) }
     function visualiser(on: bool): void { root.setVisualiser(on) }
+    function lyricStyle(name: string): void { root.setLyricStyle(name) }
     function barLyrics(on: bool): void { root.setBarLyrics(on) }
     function videoLyrics(on: bool): void { root.setVideoLyrics(on) }
     function status(): string {

@@ -270,6 +270,16 @@ test("listTracks reads channel feeds and playlists alike", () => {
   assert.deepEqual(Model.listTracks("channel", null), [])
 })
 
+test("lyric styles cycle both ways and ride on the address", () => {
+  assert.equal(Model.nextLyricStyle("plain", 1), "dots")
+  assert.equal(Model.nextLyricStyle("wave", 1), "plain")
+  assert.equal(Model.nextLyricStyle("plain", -1), "wave")
+  assert.equal(Model.nextLyricStyle("nonsense", 1), "dots")
+  const base = "https://fm.video/mini"
+  assert.equal(Model.miniHref(base, "zm", { lyrics: true, style: "dots" }), base + "?station=zm&lyrics=1&style=dots&shell=omarchy")
+  assert.equal(Model.miniHref(base, "zm", { lyrics: true, style: "plain" }), base + "?station=zm&lyrics=1&shell=omarchy")
+})
+
 test("toggleFavourite adds and removes", () => {
   assert.deepEqual(Model.toggleFavourite([], "zm"), ["zm"])
   assert.deepEqual(Model.toggleFavourite(["zm", "george"], "zm"), ["george"])
