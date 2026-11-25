@@ -459,8 +459,15 @@ Item {
   // Commands go to the page as its own keys. The desktop's media commands
   // only reach the embedded YouTube frame, which ignores next and previous.
   function playPause() { windowOpen ? pressKey("space") : openWindow() }
-  function next() { pressKey("N") }
-  function previous() { pressKey("P") }
+  // Live radio has no next song, so next and previous go to the next and
+  // previous station in the picker's order, among those with a broadcast.
+  function stepStation(step) {
+    var order = Model.stationOrder(stations, country, favourites, windowLive)
+    var key = Model.stepStation(order, station, step)
+    if (key !== "" && key !== station) setStation(key)
+  }
+  function next() { windowLive ? stepStation(1) : pressKey("N") }
+  function previous() { windowLive ? stepStation(-1) : pressKey("P") }
 
   function setVideoLyrics(on) {
     if (videoLyrics === on) return
@@ -571,15 +578,27 @@ Item {
   // The page's own full screen button. A pinned window cannot go full
   // screen by itself, so the page counts clicks in its title and the plugin
   // does the work (see Model.fullscreenCount).
+  //
+  // The page's next and previous station arrows, shown while live, ask the
+  // same way with " [nx:N]" and " [pv:N]": the page does not know the
+  // order of the plugin's list, favourites first, so the plugin picks.
   property var fullscreenWindow: null
   property int fullscreenSeen: 0
+  property int nextSeen: 0
+  property int previousSeen: 0
   onWindowTitleChanged: {
     var count = Model.fullscreenCount(windowTitle)
+    var nx = Model.markerCount(windowTitle, "nx")
+    var pv = Model.markerCount(windowTitle, "pv")
     if (toplevel !== fullscreenWindow) {
       fullscreenWindow = toplevel
       fullscreenSeen = count
+      nextSeen = nx
+      previousSeen = pv
       return
     }
+    if (nx !== nextSeen) { nextSeen = nx; stepStation(1) }
+    if (pv !== previousSeen) { previousSeen = pv; stepStation(-1) }
     if (count === fullscreenSeen) return
     fullscreenSeen = count
     windowCommand(["fullscreen"], function(data) { root.takeState(data) })

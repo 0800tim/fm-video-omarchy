@@ -34,13 +34,20 @@ function parseTitle(title) {
 // front. parseTitle drops them all.
 function stripMarkers(title) {
   var s = String(title || "")
-  var marker = /\s\[(?:fs|lo):[^\]]*\]\s*$/
+  var marker = /\s\[(?:fs|lo|nx|pv):[^\]]*\]\s*$/
   while (marker.test(s)) s = s.replace(marker, "")
   return s
 }
 
 function fullscreenCount(title) {
   var m = /\s\[fs:(\d+)\]/.exec(String(title || ""))
+  return m ? parseInt(m[1], 10) : 0
+}
+
+// Clicks on the page's next ("nx") and previous ("pv") station arrows,
+// counted the same way as the full screen button: " [nx:2]".
+function markerCount(title, name) {
+  var m = new RegExp("\\s\\[" + name + ":(\\d+)\\]").exec(String(title || ""))
   return m ? parseInt(m[1], 10) : 0
 }
 
@@ -226,6 +233,34 @@ function stationRows(stations, userCountry, query, favourites) {
     }
   }
   return rows
+}
+
+// Station keys in the order the picker shows them, each once: favourites
+// first. With liveOnly, only stations that have a broadcast to listen to.
+function stationOrder(stations, userCountry, favourites, liveOnly) {
+  var rows = stationRows(stations, userCountry, "", favourites)
+  var seen = {}
+  var out = []
+  for (var i = 0; i < rows.length; i++) {
+    var key = rows[i].key
+    if (rows[i].kind !== "station" || seen[key]) continue
+    seen[key] = true
+    if (liveOnly) {
+      var s = findStation(stations, key)
+      if (!s || !s.streamUrl) continue
+    }
+    out.push(key)
+  }
+  return out
+}
+
+// The station `step` places on from `current` in `order`, going round at
+// the ends. A station that is not in the list starts from the top.
+function stepStation(order, current, step) {
+  if (!order || order.length === 0) return ""
+  var at = order.indexOf(current)
+  if (at < 0) return order[0]
+  return order[((at + step) % order.length + order.length) % order.length]
 }
 
 // The list of favourites with one station added, or taken out if it was in.

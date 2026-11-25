@@ -195,8 +195,8 @@ Panel {
       height: parent.height
       bar: root.bar
       text: root.glyphNext
-      hasVisualContent: root.windowOpen && !root.windowLive
-      tooltipText: root.opened ? "" : "Next song"
+      hasVisualContent: root.windowOpen
+      tooltipText: root.opened ? "" : root.windowLive ? "Next station" : "Next song"
       onPressed: function(b) { root.press(b, function() { root.svc.next() }) }
     }
   }
@@ -362,9 +362,8 @@ Panel {
         visible: root.windowOpen
 
         PanelActionButton {
-          visible: !root.windowLive
           iconText: root.glyphPrevious
-          tooltipText: "Previous song"
+          tooltipText: root.windowLive ? "Previous station" : "Previous song"
           foreground: root.foreground
           fontFamily: root.fontFamily
           bordered: true
@@ -379,9 +378,8 @@ Panel {
           onClicked: root.svc.playPause()
         }
         PanelActionButton {
-          visible: !root.windowLive
           iconText: root.glyphNext
-          tooltipText: "Next song"
+          tooltipText: root.windowLive ? "Next station" : "Next song"
           foreground: root.foreground
           fontFamily: root.fontFamily
           bordered: true

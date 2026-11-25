@@ -193,6 +193,30 @@ test("lineProgress: sung at a natural pace, sooner if the next line is close", (
   assert.equal(Model.lineProgress(lines, -1, 5), 0)
 })
 
+test("next and previous station follow the picker's order", () => {
+  const list = stations.map((s) => (s.slug === "kexp" ? { ...s, streamUrl: "https://x/stream" } : s))
+    .map((s) => (s.slug === "zm" ? { ...s, streamUrl: "https://y/stream" } : s))
+  const all = Model.stationOrder(list, "NZ", ["kexp"], false)
+  assert.deepEqual(all, ["kexp", "all-nz", "zm", "george", "all-us"])
+  const live = Model.stationOrder(list, "NZ", ["kexp"], true)
+  assert.deepEqual(live, ["kexp", "zm"])
+  assert.equal(Model.stepStation(live, "kexp", 1), "zm")
+  assert.equal(Model.stepStation(live, "zm", 1), "kexp")
+  assert.equal(Model.stepStation(live, "kexp", -1), "zm")
+  assert.equal(Model.stepStation(live, "george", 1), "kexp")
+  assert.equal(Model.stepStation([], "zm", 1), "")
+})
+
+test("window title: next and previous station counters", () => {
+  const title = "Diggy \u00b7 Sammy Virji \u00b7 George FM Live [nx:3] [pv:1] [fs:2]"
+  assert.equal(Model.markerCount(title, "nx"), 3)
+  assert.equal(Model.markerCount(title, "pv"), 1)
+  assert.equal(Model.markerCount("a \u00b7 b \u00b7 c", "nx"), 0)
+  const t = Model.parseTitle(title)
+  assert.equal(t.station, "George FM")
+  assert.equal(t.live, true)
+})
+
 test("toggleFavourite adds and removes", () => {
   assert.deepEqual(Model.toggleFavourite([], "zm"), ["zm"])
   assert.deepEqual(Model.toggleFavourite(["zm", "george"], "zm"), ["george"])
