@@ -122,6 +122,7 @@ No code is ever loaded from the network. Only data.
 - **Captions.** YouTube's own captions sometimes show over the video.
 - **An upright bar** (on the left or right edge) shows only the icon. Click it for the panel.
 - **Only tested on Hyprland 0.56 with Omarchy's Lua config.** Older Hyprland configs will not float or pin the window.
+- **The video window's browser profile takes disk space**, a few hundred megabytes after some use, in `~/.local/state/fmvideo-omarchy/browser`.
 - **Firefox is not supported** for the video window. If your default browser is not a Chromium kind, the plugin uses Chromium.
 
 ## Working on it
