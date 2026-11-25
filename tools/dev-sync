@@ -6,7 +6,7 @@
 set -euo pipefail
 
 src="$(cd "$(dirname "$0")/.." && pwd)"
-dest="$HOME/.config/omarchy/plugins/video.fm.radio"
+dest="$HOME/.config/omarchy/plugins/plugin.fm.video"
 
 mkdir -p "$dest"
 rsync -a --delete --exclude .git --exclude tools --exclude tests --exclude docs "$src/" "$dest/"

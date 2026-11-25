@@ -27,13 +27,13 @@ omarchy plugin add https://github.com/0800tim/omarchy-fmvideo.git --enable
 The widget goes in the right hand end of the bar. To move it:
 
 ```bash
-omarchy bar move video.fm.radio --section left
+omarchy bar move plugin.fm.video --section left
 ```
 
 ## Remove
 
 ```bash
-omarchy plugin remove video.fm.radio
+omarchy plugin remove plugin.fm.video
 ```
 
 That removes the plugin. It leaves one folder behind, `~/.local/state/fmvideo-omarchy`, which holds your last station, where you put the video window, and the browser profile the window uses. Delete it if you want nothing left:
@@ -85,7 +85,7 @@ Add these to the plugin's entry in `~/.config/omarchy/shell.json`, or use `omarc
 | `hideExplicitLyrics` | `false` | Keep the lyrics of songs marked explicit out of the bar. |
 
 ```bash
-omarchy bar set video.fm.radio maxLength 40
+omarchy bar set plugin.fm.video maxLength 40
 ```
 
 ## Keyboard shortcuts
@@ -93,20 +93,20 @@ omarchy bar set video.fm.radio maxLength 40
 The plugin answers these commands, so you can bind keys to them in your Hyprland config:
 
 ```bash
-omarchy-shell video.fm.radio toggleWindow     # show or hide
-omarchy-shell video.fm.radio stop
-omarchy-shell video.fm.radio live true
-omarchy-shell video.fm.radio playPause
-omarchy-shell video.fm.radio next
-omarchy-shell video.fm.radio previous
-omarchy-shell video.fm.radio station george
-omarchy-shell video.fm.radio channel glastonbury
-omarchy-shell video.fm.radio playlist <its share code>
-omarchy-shell video.fm.radio favourites
-omarchy-shell video.fm.radio size medium     # small, medium, large or full
-omarchy-shell video.fm.radio barLyrics true
-omarchy-shell video.fm.radio videoLyrics false
-omarchy-shell video.fm.radio status
+omarchy-shell plugin.fm.video toggleWindow     # show or hide
+omarchy-shell plugin.fm.video stop
+omarchy-shell plugin.fm.video live true
+omarchy-shell plugin.fm.video playPause
+omarchy-shell plugin.fm.video next
+omarchy-shell plugin.fm.video previous
+omarchy-shell plugin.fm.video station george
+omarchy-shell plugin.fm.video channel glastonbury
+omarchy-shell plugin.fm.video playlist <its share code>
+omarchy-shell plugin.fm.video favourites
+omarchy-shell plugin.fm.video size medium     # small, medium, large or full
+omarchy-shell plugin.fm.video barLyrics true
+omarchy-shell plugin.fm.video videoLyrics false
+omarchy-shell plugin.fm.video status
 ```
 
 ## How it works
@@ -132,6 +132,8 @@ Nothing times single words, so the lit part of a lyric line is worked out from h
 - Requests to `api.fm.video` for stations, plays and lyrics, and one request to learn your country so your stations come first. The bar asks every 40 seconds while the video or the panel is open, and every two minutes otherwise. When the plugin is turned off it asks for nothing.
 - Station logos from `fm.video`.
 - Everything the video window loads, which is the FM.video page and YouTube's player.
+
+- One request the first time the plugin runs, to register an install id. FM.video uses it to count installs and to stop one that misbehaves. It is anonymous: FM.video keeps the id (as a hash), the plugin's version, the country the request came from, and dates. No name, no address, no IP address. The id is kept in `~/.local/state/fmvideo-omarchy/install-token`, readable only by you, and sent with every request.
 
 The API key in `Constants.js` is public on purpose. It can only read what the website already shows, and the server limits how often anyone can use it. It is for this plugin only, so please do not use it for anything else.
 

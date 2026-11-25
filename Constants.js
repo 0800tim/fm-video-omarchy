@@ -2,7 +2,7 @@
 
 // Every fixed value the plugin needs, in one place.
 
-var pluginId = "video.fm.radio"
+var pluginId = "plugin.fm.video"
 
 // The public, read only key for the FM.video API. It is meant to be seen:
 // it only allows reading what the website already shows, and it is limited

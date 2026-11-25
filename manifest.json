@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "video.fm.radio",
+  "id": "plugin.fm.video",
   "name": "FM.video",
   "version": "0.1.0",
   "author": "Tim Thomas",

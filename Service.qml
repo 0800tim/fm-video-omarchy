@@ -157,16 +157,84 @@ Item {
     }
   }
 
+  // ---- This install's own token. The key in Constants.js says "this is
+  // the plugin"; the token says which copy, so FM.video can count installs
+  // and stop one that misbehaves without touching the rest. It is asked for
+  // once and kept in a file only this user can read.
+  property string installToken: ""
+  property bool tokenLoaded: false
+  property bool installRefused: false
+  property double lastRegisterAt: 0
+  readonly property string tokenPath: stateDir + "/install-token"
+
+  function headers() {
+    var list = ["-H", "X-FMV-Key: " + C.apiKey]
+    if (installToken !== "") list = list.concat(["-H", "X-FMV-Install: " + installToken])
+    return list
+  }
+
+  // 403 with the right key means this install's token is unknown or has
+  // been turned off. Stop asking for an hour, and register again at most
+  // once a day.
+  function refused() {
+    pausedUntil = Date.now() + 3600000
+    if (installToken === "") return
+    installToken = ""
+    installRefused = true
+    lastError = "FM.video is not available on this install"
+    registerInstall()
+  }
+
+  function registerInstall() {
+    if (!stateLoaded || !tokenLoaded || installToken !== "") return
+    if (Date.now() - lastRegisterAt < 86400000) return
+    lastRegisterAt = Date.now()
+    saveState()
+    var request = requestComponent.createObject(root, {
+      done: function(status, data) {
+        if (status === 200 && data && /^fmi_[A-Za-z0-9_-]{8,200}$/.test(String(data.token || ""))) {
+          root.installToken = String(data.token)
+          root.installRefused = false
+          root.pausedUntil = 0
+          if (root.lastError === "FM.video is not available on this install") root.lastError = ""
+          saveToken.command = ["sh", "-c", "umask 077; printf %s \"$1\" > \"$2\"", "sh", root.installToken, root.tokenPath]
+          saveToken.running = true
+        } else if (status === 429) {
+          // Too many registrations from this address today: try in an hour.
+          root.lastRegisterAt = Date.now() - 86400000 + 3600000
+          root.saveState()
+        }
+      }
+    })
+    var version = manifest && manifest.version ? String(manifest.version) : "0"
+    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent,
+      "-H", "X-FMV-Key: " + C.apiKey, "-H", "Content-Type: application/json", "-X", "POST",
+      "--data-raw", JSON.stringify({ app: "omarchy", version: version }), "-w", "\n%{http_code}",
+      C.apiBase + "/api/plugin/register"]
+    request.running = true
+  }
+
+  Process { id: saveToken }
+
+  Timer {
+    interval: 3600000
+    repeat: true
+    running: root.stateLoaded && root.tokenLoaded && root.installToken === ""
+    triggeredOnStart: true
+    onTriggered: root.registerInstall()
+  }
+
   function api(path, done) {
     if (Date.now() < pausedUntil) { done(429, null); return }
     var request = requestComponent.createObject(root, {
       done: function(status, data) {
         if (status === 429) root.pausedUntil = Date.now() + 60000
+        if (status === 403) root.refused()
         done(status, data)
       }
     })
-    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent,
-      "-H", "X-FMV-Key: " + C.apiKey, "-w", "\n%{http_code}", C.apiBase + path]
+    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent].concat(headers(),
+      ["-w", "\n%{http_code}", C.apiBase + path])
     request.running = true
   }
 
@@ -175,12 +243,12 @@ Item {
     var request = requestComponent.createObject(root, {
       done: function(status, data) {
         if (status === 429) root.pausedUntil = Date.now() + 30000
+        if (status === 403) root.refused()
         done(status, data)
       }
     })
-    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent,
-      "-H", "X-FMV-Key: " + C.apiKey, "-H", "Content-Type: application/json",
-      "-X", "POST", "--data-raw", JSON.stringify(body), "-w", "\n%{http_code}", C.apiBase + path]
+    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent].concat(headers(),
+      ["-H", "Content-Type: application/json", "-X", "POST", "--data-raw", JSON.stringify(body), "-w", "\n%{http_code}", C.apiBase + path])
     request.running = true
   }
 
@@ -792,7 +860,8 @@ Item {
       station: station, barLyrics: barLyrics, videoLyrics: videoLyrics, geometry: geometry,
       favourites: favourites, live: live, visualiser: visualiser,
       remoteCode: remoteCode, remoteWindow: remoteWindow,
-      listKind: listKind, listValue: listValue, listName: listName, lyricStyle: lyricStyle
+      listKind: listKind, listValue: listValue, listName: listName, lyricStyle: lyricStyle,
+      lastRegisterAt: lastRegisterAt
     }, null, 2) + "\n")
   }
 
@@ -811,6 +880,7 @@ Item {
         listValue = data.listValue
         listName = typeof data.listName === "string" ? data.listName.slice(0, 80) : data.listValue
       }
+      if (typeof data.lastRegisterAt === "number") lastRegisterAt = data.lastRegisterAt
       if (Model.lyricStyles.indexOf(data.lyricStyle) !== -1) lyricStyle = data.lyricStyle
       if (typeof data.live === "boolean") live = data.live
       if (typeof data.visualiser === "boolean") visualiser = data.visualiser
@@ -824,7 +894,21 @@ Item {
     id: makeStateDir
     command: ["mkdir", "-p", root.stateDir]
     running: true
-    onExited: stateFile.path = root.stateDir + "/state.json"
+    onExited: {
+      stateFile.path = root.stateDir + "/state.json"
+      tokenFile.path = root.tokenPath
+    }
+  }
+
+  FileView {
+    id: tokenFile
+    printErrors: false
+    onLoaded: {
+      var token = text().trim()
+      if (/^fmi_[A-Za-z0-9_-]{8,200}$/.test(token)) root.installToken = token
+      root.tokenLoaded = true
+    }
+    onLoadFailed: root.tokenLoaded = true
   }
 
   FileView {
@@ -853,7 +937,7 @@ Item {
   // ------------------------------------------------------------ commands
   //
   // For keyboard shortcuts and scripts:
-  //   omarchy-shell video.fm.radio toggleWindow
+  //   omarchy-shell plugin.fm.video toggleWindow
 
   IpcHandler {
     target: C.pluginId
@@ -883,7 +967,7 @@ Item {
       return JSON.stringify({
         station: root.station, list: root.feedOwner, stationName: root.stationName, song: root.song, artist: root.artist,
         windowOpen: root.windowOpen, windowShown: root.windowShown, playing: root.playing, live: root.windowLive, lyricLine: root.lyricLine,
-        lyricLines: root.lyricLines.length, stations: root.stations.length, error: root.lastError
+        lyricLines: root.lyricLines.length, stations: root.stations.length, error: root.lastError, registered: root.installToken !== ""
       })
     }
   }
