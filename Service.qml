@@ -22,6 +22,8 @@ Item {
   property bool videoLyrics: false            // show the lyric line over the video
   property var geometry: null                 // { x, y, w, h } of the video window
   property var favourites: []                 // station keys, in the order they were added
+  property bool live: false                   // play the station's own broadcast, not the videos
+  property bool visualiser: true              // draw the visualiser while live
   property bool stateLoaded: false
 
   // ---- From the API.
@@ -49,6 +51,9 @@ Item {
   readonly property bool windowOpen: toplevel !== null
   readonly property string windowTitle: toplevel ? String(toplevel.title || "") : ""
   readonly property var titleInfo: windowOpen ? Model.parseTitle(windowTitle) : null
+  // What the window is doing now, which wins over what was asked for.
+  readonly property bool windowLive: titleInfo ? titleInfo.live === true : false
+  readonly property bool canLive: stationObject !== null && String(stationObject.streamUrl || "") !== ""
   property int windowPid: 0
   property bool opening: false
   property bool windowFullscreen: false
@@ -96,7 +101,8 @@ Item {
   property string lyricsFor: ""    // the video the lines belong to
   property string lyricLine: ""
   property real lyricProgress: 0   // how much of the line has been sung, 0 to 1
-  readonly property bool wantLyrics: barLyrics && windowOpen && widgets > 0
+  // Lyrics are timed to the video, so there are none for live radio.
+  readonly property bool wantLyrics: barLyrics && windowOpen && widgets > 0 && !windowLive
 
   // ------------------------------------------------------------ requests
 
@@ -168,8 +174,30 @@ Item {
   function clearLyrics() {
     lyricLines = []
     lyricOffset = 0
+    lyricKey = ""
     lyricLine = ""
     lyricProgress = 0
+  }
+
+  property string lyricKey: ""
+
+  // People can nudge a song's timing on the site, and the fix is shared,
+  // so look again now and then while the song plays.
+  function loadLyricOffset() {
+    var video = lyricsFor
+    if (video === "" || lyricKey === "") return
+    api("/api/lyrics/video/" + encodeURIComponent(video) + "/offset?k=" + encodeURIComponent(lyricKey),
+      function(status, data) {
+        if (root.lyricsFor !== video) return
+        if (status === 200 && data) root.lyricOffset = typeof data.offset === "number" ? data.offset : 0
+      })
+  }
+
+  Timer {
+    interval: 30000
+    repeat: true
+    running: root.lyricLines.length > 0 && root.lyricKey !== "" && root.playing
+    onTriggered: root.loadLyricOffset()
   }
 
   function loadLyrics() {
@@ -197,12 +225,8 @@ Item {
       }
       if (status !== 200 || !data || !data.synced) return
       root.lyricLines = Model.parseLrc(data.synced)
-      if (!data.lrcKey) return
-      root.api("/api/lyrics/video/" + encodeURIComponent(video) + "/offset?k=" + encodeURIComponent(data.lrcKey),
-        function(status3, data3) {
-          if (root.lyricsFor !== video) return
-          if (status3 === 200 && data3 && typeof data3.offset === "number") root.lyricOffset = data3.offset
-        })
+      root.lyricKey = data.lrcKey ? String(data.lrcKey) : ""
+      root.loadLyricOffset()
     })
   }
 
@@ -272,8 +296,48 @@ Item {
     }
   }
 
-  function address() {
-    return Model.miniHref(C.miniUrl, station, videoLyrics)
+  function address(video) {
+    return Model.miniHref(C.miniUrl, station, {
+      lyrics: videoLyrics, live: live && canLive, visualiser: visualiser, video: video || ""
+    })
+  }
+
+  // Play one video now, from the Just played list.
+  function playVideo(video) {
+    video = String(video || "")
+    if (!/^[A-Za-z0-9_-]{6,20}$/.test(video)) return
+    if (live) { live = false; saveState() }
+    var url = Model.miniHref(C.miniUrl, station, { lyrics: videoLyrics, video: video })
+    var done = function(data) { root.opening = false; root.takeState(data) }
+    if (windowOpen) windowCommand(["switch", url], done)
+    else {
+      opening = true
+      var g = geometry
+      var args = ["open", url]
+      if (g) args = args.concat([String(g.x), String(g.y), String(g.w), String(g.h)])
+      windowCommand(args, done)
+    }
+  }
+
+  // Listen to the station's own broadcast, or go back to the videos. The
+  // page switches on its V key, and its title says which it is doing.
+  function setLive(on) {
+    on = on === true && canLive
+    if (live !== on) { live = on; saveState() }
+    if (windowOpen && windowLive !== on) pressKey("V")
+    else if (!windowOpen && on) openWindow()
+  }
+
+  function setVisualiser(on) {
+    if (visualiser === on) return
+    visualiser = on
+    saveState()
+    if (windowOpen && windowLive) pressKey("Z")
+  }
+
+  // Someone switched inside the window: remember it for next time.
+  onWindowLiveChanged: {
+    if (windowOpen && titleInfo && live !== windowLive) { live = windowLive; saveState() }
   }
 
   function openWindow() {
@@ -425,7 +489,7 @@ Item {
     if (!stateLoaded) return
     stateFile.setText(JSON.stringify({
       station: station, barLyrics: barLyrics, videoLyrics: videoLyrics, geometry: geometry,
-      favourites: favourites
+      favourites: favourites, live: live, visualiser: visualiser
     }, null, 2) + "\n")
   }
 
@@ -436,6 +500,8 @@ Item {
       if (typeof data.barLyrics === "boolean") barLyrics = data.barLyrics
       if (typeof data.videoLyrics === "boolean") videoLyrics = data.videoLyrics
       if (data.geometry && data.geometry.w > 0 && data.geometry.h > 0) geometry = data.geometry
+      if (typeof data.live === "boolean") live = data.live
+      if (typeof data.visualiser === "boolean") visualiser = data.visualiser
       if (Array.isArray(data.favourites))
         favourites = data.favourites.filter(function(k) { return typeof k === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,49}$/.test(k) })
     } catch (e) {}
@@ -474,12 +540,14 @@ Item {
     function previous(): void { root.previous() }
     function station(key: string): void { root.setStation(key) }
     function size(name: string): void { root.setWindowSize(name) }
+    function live(on: bool): void { root.setLive(on) }
+    function visualiser(on: bool): void { root.setVisualiser(on) }
     function barLyrics(on: bool): void { root.setBarLyrics(on) }
     function videoLyrics(on: bool): void { root.setVideoLyrics(on) }
     function status(): string {
       return JSON.stringify({
         station: root.station, stationName: root.stationName, song: root.song, artist: root.artist,
-        windowOpen: root.windowOpen, playing: root.playing, lyricLine: root.lyricLine,
+        windowOpen: root.windowOpen, playing: root.playing, live: root.windowLive, lyricLine: root.lyricLine,
         lyricLines: root.lyricLines.length, stations: root.stations.length, error: root.lastError
       })
     }

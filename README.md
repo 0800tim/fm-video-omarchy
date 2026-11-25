@@ -108,7 +108,7 @@ The plugin learns what the window is playing from the window's title, and reads 
 
 The video window has a browser profile of its own, kept apart from your normal browsing.
 
-Dragging works through a small Lua script, `scripts/fmv-drag.lua`, that the plugin loads into Hyprland while the video window is open. It watches the left mouse button and moves the window only when the press lands on the FM.video window. Clicks still go through to whatever is under the pointer, and no other window is affected. It is removed when the video window is closed from the panel, and on any Hyprland reload. To remove it by hand: `hyprctl eval 'fmvideo_drag.unload()'`.
+Dragging works through a small Lua script, `scripts/fmv-drag.lua`, that the plugin loads into Hyprland while the video window is open. It watches the left mouse button and moves the window only when the press lands on the FM.video window. Clicks still go through to whatever is under the pointer, and no other window is affected. It stays loaded until the next Hyprland reload, and does nothing while no FM.video window is open. To switch it off by hand: `hyprctl eval 'fmvideo_drag.unload()'`.
 
 Nothing times single words, so the lit part of a lyric line is worked out from how far the song is between this line and the next.
 

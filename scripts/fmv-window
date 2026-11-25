@@ -78,8 +78,10 @@ load_drag() {
   hyprctl eval "fmvideo_drag_no_binds = nil; dofile('$DRAG_SCRIPT')" >/dev/null 2>&1
 }
 
+# Nothing is taken out of Hyprland when the window closes. The watcher finds
+# no FM.video window and does nothing, which is safer than removing it.
 unload_drag() {
-  hyprctl eval "if fmvideo_drag then fmvideo_drag.unload() end" >/dev/null 2>&1
+  :
 }
 
 launch() {

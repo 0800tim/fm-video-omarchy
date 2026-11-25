@@ -9,15 +9,22 @@ function parseTitle(title) {
   var clean = String(title || "").replace(/\s\[fs:\d+\]\s*$/, "").replace(/^\[[^\]]*\]\s+/, "")
   var parts = clean.split(" \u00b7 ")
   if (parts.length < 2) return null
+  var out
   if (parts.length === 2) {
-    if (parts[1] === "FM.video") return { song: "", artist: "", station: parts[0] }
-    return { song: parts[0], artist: "", station: parts[1] }
+    if (parts[1] === "FM.video") out = { song: "", artist: "", station: parts[0] }
+    else out = { song: parts[0], artist: "", station: parts[1] }
+  } else {
+    out = {
+      song: parts.slice(0, parts.length - 2).join(" \u00b7 "),
+      artist: parts[parts.length - 2],
+      station: parts[parts.length - 1]
+    }
   }
-  return {
-    song: parts.slice(0, parts.length - 2).join(" · "),
-    artist: parts[parts.length - 2],
-    station: parts[parts.length - 1]
-  }
+  // "George FM Live" means the window is playing the station's own
+  // broadcast and not the music videos.
+  out.live = / Live$/.test(out.station)
+  if (out.live) out.station = out.station.replace(/ Live$/, "")
+  return out
 }
 
 // Two extras can ride along on the title. The page counts clicks on its
@@ -111,15 +118,20 @@ function activeLine(lines, t) {
   return at
 }
 
-// How much of the line being sung to light up, from 0 to 1. There are no
-// times for single words, so this spreads the words evenly over the line
-// and treats it as fully sung a little before the next line starts.
+// How much of the line being sung to light up, from 0 to 1. Nothing times
+// single words, so this is an estimate, and the same one the FM.video page
+// makes so the bar and the video agree: a line is sung at the pace of most
+// pop (0.42 seconds a word, plus a breath), or faster if the next line
+// comes sooner. A line before a long gap is sung at that pace and then
+// stays lit.
 function lineProgress(lines, at, t) {
   if (at < 0 || at >= lines.length) return 0
   var start = lines[at].t
-  var end = at + 1 < lines.length ? lines[at + 1].t : start + 4
-  var span = Math.min(Math.max(end - start, 0.1), 12)
-  return Math.max(0, Math.min(1, (t - start) / span / 0.85))
+  var words = String(lines[at].text || "").split(/\s+/).filter(function(w) { return w !== "" }).length
+  var natural = words * 0.42 + 0.8
+  var gap = at + 1 < lines.length ? (lines[at + 1].t - start) * 0.92 : natural
+  var span = Math.max(0.5, Math.min(gap, natural))
+  return Math.max(0, Math.min(1, (t - start) / span))
 }
 
 // The countries listed first after your own: the ones next door, or the ones
@@ -220,11 +232,21 @@ function logoUrl(siteBase, station) {
   return u.charAt(0) === "/" ? siteBase + u : u
 }
 
-function miniHref(base, station, lyrics) {
+// The address of the mini player. `options` may hold lyrics, live (play
+// the station's own broadcast), visualiser and video (a YouTube id to
+// start with).
+function miniHref(base, station, options) {
+  var o = options || {}
   var q = []
   if (station) q.push("station=" + encodeURIComponent(station))
-  if (lyrics) q.push("lyrics=1")
+  if (o.lyrics) q.push("lyrics=1")
+  if (o.live) {
+    q.push("live=1")
+    if (o.visualiser === false) q.push("viz=0")
+  } else if (o.video) {
+    q.push("v=" + encodeURIComponent(o.video))
+  }
   // Tells the page it is inside the plugin's window (see fullscreenCount).
   q.push("shell=omarchy")
-  return q.length ? base + "?" + q.join("&") : base
+  return base + "?" + q.join("&")
 }

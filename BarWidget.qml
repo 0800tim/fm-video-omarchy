@@ -62,6 +62,7 @@ Panel {
 
   readonly property bool windowOpen: svc ? svc.windowOpen : false
   readonly property bool playing: svc ? svc.playing : false
+  readonly property bool windowLive: svc ? svc.windowLive : false
   readonly property bool showSongWhenClosed: setting("showSongWhenClosed", true) === true
   readonly property int maxLength: Math.max(12, Number(setting("maxLength", 56)) || 56)
 
@@ -97,6 +98,23 @@ Panel {
     if (button === Qt.MiddleButton) svc.toggleWindow()
     else if (button === Qt.RightButton) root.toggle()
     else primary()
+  }
+
+  // The panel hangs from this, not from the song label. The label changes
+  // width with every lyric line, and the panel would slide about with it.
+  // In the right hand end of the bar the widget's right edge stays put as
+  // it grows, and in the left hand end its left edge does.
+  readonly property bool growsRight: {
+    var left = bar && bar.layoutConfig ? bar.layoutConfig.left : null
+    if (!Array.isArray(left)) return false
+    for (var i = 0; i < left.length; i++) if (left[i] && left[i].id === C.pluginId) return true
+    return false
+  }
+  Item {
+    id: panelAnchor
+    width: Math.min(parent.width, root.barSize)
+    height: parent.height
+    x: root.growsRight ? 0 : parent.width - width
   }
 
   Row {
@@ -175,7 +193,7 @@ Panel {
       height: parent.height
       bar: root.bar
       text: root.glyphNext
-      hasVisualContent: root.windowOpen
+      hasVisualContent: root.windowOpen && !root.windowLive
       tooltipText: root.opened ? "" : "Next song"
       onPressed: function(b) { root.press(b, function() { root.svc.next() }) }
     }
@@ -259,7 +277,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
-    anchorItem: root.vertical ? uprightButton : label.visible ? label : playButton
+    anchorItem: root.vertical ? uprightButton : panelAnchor
     owner: root
     bar: root.bar
     open: root.opened
@@ -277,7 +295,7 @@ Panel {
         width: parent.width
         title: root.svc ? root.svc.stationName : "FM.video"
         meta: !root.svc ? "" : root.svc.lastError !== "" ? root.svc.lastError.toUpperCase()
-          : !root.windowOpen ? "ON AIR NOW" : root.playing ? "PLAYING" : "PAUSED"
+          : !root.windowOpen ? "ON AIR NOW" : !root.playing ? "PAUSED" : root.windowLive ? "LIVE" : "PLAYING"
         foreground: root.foreground
         fontFamily: root.fontFamily
         iconComponent: Component {
@@ -340,6 +358,7 @@ Panel {
         visible: root.windowOpen
 
         PanelActionButton {
+          visible: !root.windowLive
           iconText: root.glyphPrevious
           tooltipText: "Previous song"
           foreground: root.foreground
@@ -356,6 +375,7 @@ Panel {
           onClicked: root.svc.playPause()
         }
         PanelActionButton {
+          visible: !root.windowLive
           iconText: root.glyphNext
           tooltipText: "Next song"
           foreground: root.foreground
@@ -373,11 +393,25 @@ Panel {
         onToggled: if (root.svc) root.svc.toggleWindow()
       }
       SwitchRow {
+        label: "Listen live"
+        visible: root.svc !== null && root.svc.canLive
+        checked: root.svc ? (root.windowOpen ? root.windowLive : root.svc.live) : false
+        onToggled: if (root.svc) root.svc.setLive(!checked)
+      }
+      SwitchRow {
+        label: "Visualiser"
+        visible: root.windowLive
+        checked: root.svc ? root.svc.visualiser : false
+        onToggled: if (root.svc) root.svc.setVisualiser(!root.svc.visualiser)
+      }
+      SwitchRow {
+        visible: !root.windowLive
         label: "Lyrics in the bar"
         checked: root.svc ? root.svc.barLyrics : false
         onToggled: if (root.svc) root.svc.setBarLyrics(!root.svc.barLyrics)
       }
       SwitchRow {
+        visible: !root.windowLive
         label: "Lyrics on the video"
         checked: root.svc ? root.svc.videoLyrics : false
         onToggled: if (root.svc) root.svc.setVideoLyrics(!root.svc.videoLyrics)
@@ -427,7 +461,7 @@ Panel {
 
       Column {
         width: parent.width
-        spacing: Style.space(4)
+        spacing: 0
         visible: played.count > 0
 
         Repeater {
@@ -437,12 +471,23 @@ Panel {
           Item {
             id: playedRow
             required property var modelData
+            readonly property string video: String(modelData.youTubeVideoId || "")
             width: parent.width
-            implicitHeight: playedText.implicitHeight
+            implicitHeight: playedText.implicitHeight + Style.space(4)
+
+            Rectangle {
+              anchors.fill: parent
+              anchors.leftMargin: -Style.space(4)
+              anchors.rightMargin: -Style.space(4)
+              visible: playedMouse.containsMouse && playedRow.video !== ""
+              radius: Style.cornerRadius
+              color: Style.hoverFillFor(root.foreground, Commons.Color.accent, Commons.Color.urgent)
+            }
 
             Text {
               id: playedTime
               anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
               width: Style.space(64)
               textFormat: Text.PlainText
               text: Qt.formatTime(new Date(playedRow.modelData.playedOn), "h:mm ap")
@@ -454,12 +499,23 @@ Panel {
               id: playedText
               anchors.left: playedTime.right
               anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
               textFormat: Text.PlainText
-              text: playedRow.modelData.title + " · " + playedRow.modelData.artist
+              text: playedRow.modelData.title + " \u00b7 " + playedRow.modelData.artist
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
+            }
+
+            // Click a song to watch its video now.
+            MouseArea {
+              id: playedMouse
+              anchors.fill: parent
+              enabled: playedRow.video !== ""
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.svc) root.svc.playVideo(playedRow.video)
             }
           }
         }

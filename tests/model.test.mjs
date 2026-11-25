@@ -19,11 +19,11 @@ function test(name, fn) {
 
 test("window title: song, artist, station", () => {
   assert.deepEqual(Model.parseTitle("Firefly · Drax Project · ZM"),
-    { song: "Firefly", artist: "Drax Project", station: "ZM" })
+    { song: "Firefly", artist: "Drax Project", station: "ZM", live: false })
 })
 
 test("window title: before the first song", () => {
-  assert.deepEqual(Model.parseTitle("George FM · FM.video"), { song: "", artist: "", station: "George FM" })
+  assert.deepEqual(Model.parseTitle("George FM · FM.video"), { song: "", artist: "", station: "George FM", live: false })
 })
 
 test("window title: a dot inside the song name stays with the song", () => {
@@ -119,14 +119,24 @@ test("logo addresses: site relative ones get the site in front", () => {
 })
 
 test("mini player address", () => {
-  assert.equal(Model.miniHref("https://fm.video/mini", "george", false), "https://fm.video/mini?station=george&shell=omarchy")
-  assert.equal(Model.miniHref("https://fm.video/mini", "all-nz", true), "https://fm.video/mini?station=all-nz&lyrics=1&shell=omarchy")
-  assert.equal(Model.miniHref("https://fm.video/mini", "", false), "https://fm.video/mini?shell=omarchy")
+  const base = "https://fm.video/mini"
+  assert.equal(Model.miniHref(base, "george"), base + "?station=george&shell=omarchy")
+  assert.equal(Model.miniHref(base, "all-nz", { lyrics: true }), base + "?station=all-nz&lyrics=1&shell=omarchy")
+  assert.equal(Model.miniHref(base, ""), base + "?shell=omarchy")
+  assert.equal(Model.miniHref(base, "george", { live: true }), base + "?station=george&live=1&shell=omarchy")
+  assert.equal(Model.miniHref(base, "george", { live: true, visualiser: false }), base + "?station=george&live=1&viz=0&shell=omarchy")
+  assert.equal(Model.miniHref(base, "zm", { video: "ZsudGQCy_fM" }), base + "?station=zm&v=ZsudGQCy_fM&shell=omarchy")
+})
+
+test("window title: live radio", () => {
+  const t = Model.parseTitle("Diggy \u00b7 Sammy Virji \u00b7 George FM Live")
+  assert.equal(t.station, "George FM")
+  assert.equal(t.live, true)
 })
 
 test("window title: full screen counter and debug trail are stripped", () => {
   assert.deepEqual(Model.parseTitle("Firefly \u00b7 Drax Project \u00b7 ZM [fs:2]"),
-    { song: "Firefly", artist: "Drax Project", station: "ZM" })
+    { song: "Firefly", artist: "Drax Project", station: "ZM", live: false })
   assert.equal(Model.fullscreenCount("Firefly \u00b7 Drax Project \u00b7 ZM [fs:2]"), 2)
   assert.equal(Model.fullscreenCount("Firefly \u00b7 Drax Project \u00b7 ZM"), 0)
   assert.equal(Model.parseTitle("[yt1 yt2] In The Air \u00b7 L.A.B \u00b7 George FM").song, "In The Air")
@@ -151,16 +161,22 @@ test("favourites: listed first, marked in place, hidden while searching", () => 
   assert.equal(Model.stationRows(stations, "NZ", "zm", ["george"])[0].label, "New Zealand")
 })
 
-test("lineProgress wipes across the line and finishes early", () => {
-  const lines = [{ t: 10 }, { t: 20 }, { t: 60 }]
+test("lineProgress: sung at a natural pace, sooner if the next line is close", () => {
+  const lines = [
+    { t: 10, text: "one two three four five" },   // natural pace is 2.9 s
+    { t: 60, text: "a b" },                       // next line 1 s later
+    { t: 61, text: "last line here" },
+  ]
   assert.equal(Model.lineProgress(lines, 0, 10), 0)
-  assert.ok(Math.abs(Model.lineProgress(lines, 0, 14.25) - 0.5) < 0.001)
-  assert.equal(Model.lineProgress(lines, 0, 19), 1)
+  assert.ok(Math.abs(Model.lineProgress(lines, 0, 11.45) - 0.5) < 0.001)
+  // A long gap after the line: it is sung, then stays lit.
+  assert.equal(Model.lineProgress(lines, 0, 13), 1)
+  assert.equal(Model.lineProgress(lines, 0, 40), 1)
+  // The next line is close: finish just before it.
+  assert.ok(Math.abs(Model.lineProgress(lines, 1, 60.46) - 0.5) < 0.001)
+  // The last line uses the natural pace (3 words: 2.06 s).
+  assert.ok(Math.abs(Model.lineProgress(lines, 2, 62.03) - 0.5) < 0.001)
   assert.equal(Model.lineProgress(lines, -1, 5), 0)
-  // A long gap before the next line does not slow the wipe to a crawl.
-  assert.equal(Model.lineProgress(lines, 1, 31), 1)
-  // The last line has no next line to measure against.
-  assert.equal(Model.lineProgress(lines, 2, 64), 1)
 })
 
 test("toggleFavourite adds and removes", () => {
