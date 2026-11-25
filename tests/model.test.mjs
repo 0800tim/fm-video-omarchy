@@ -128,6 +128,19 @@ test("mini player address", () => {
   assert.equal(Model.miniHref(base, "zm", { video: "ZsudGQCy_fM" }), base + "?station=zm&v=ZsudGQCy_fM&shell=omarchy")
 })
 
+test("window title: markers at the end in either order", () => {
+  for (const tail of [" [lo:+0.4]", " [fs:2] [lo:-1.2]", " [lo:+0.0] [fs:7]"]) {
+    const t = Model.parseTitle("Luka \u00b7 Suzanne Vega \u00b7 The Breeze" + tail)
+    assert.equal(t.station, "The Breeze")
+    assert.equal(t.song, "Luka")
+  }
+  assert.equal(Model.parseTitle("Luka \u00b7 Suzanne Vega \u00b7 The Breeze Live [fs:2]").live, true)
+  assert.equal(Model.fullscreenCount("a \u00b7 b \u00b7 c [fs:7] [lo:+0.2]"), 7)
+  assert.equal(Model.titleLyricOffset("a \u00b7 b \u00b7 c [fs:7] [lo:+0.2]"), 0.2)
+  assert.equal(Model.titleLyricOffset("a \u00b7 b \u00b7 c [lo:-1.2] [fs:1]"), -1.2)
+  assert.equal(Model.titleLyricOffset("a \u00b7 b \u00b7 c"), null)
+})
+
 test("window title: live radio", () => {
   const t = Model.parseTitle("Diggy \u00b7 Sammy Virji \u00b7 George FM Live")
   assert.equal(t.station, "George FM")

@@ -244,7 +244,9 @@ Item {
     onTriggered: {
       // The player only reports a new position when asked to.
       root.player.positionChanged()
-      var now = root.player.position + root.lyricOffset
+      // The window's own figure wins: it includes this person's nudge.
+      var shown = Model.titleLyricOffset(root.windowTitle)
+      var now = root.player.position + (shown !== null ? shown : root.lyricOffset)
       var at = Model.activeLine(root.lyricLines, now)
       var line = at >= 0 ? root.lyricLines[at].text : ""
       if (line !== root.lyricLine) { root.lyricProgress = 0; root.lyricLine = line }

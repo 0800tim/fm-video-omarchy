@@ -6,7 +6,7 @@
 // The mini player names its window "song · artist · station", or
 // "station · FM.video" before the first song.
 function parseTitle(title) {
-  var clean = String(title || "").replace(/\s\[fs:\d+\]\s*$/, "").replace(/^\[[^\]]*\]\s+/, "")
+  var clean = stripMarkers(title).replace(/^\[[^\]]*\]\s+/, "")
   var parts = clean.split(" \u00b7 ")
   if (parts.length < 2) return null
   var out
@@ -27,13 +27,27 @@ function parseTitle(title) {
   return out
 }
 
-// Two extras can ride along on the title. The page counts clicks on its
-// full screen button at the end, as " [fs:3]", which is how it asks the
-// plugin to make the window fill the screen. And its debug mode puts
-// "[...] " at the front. parseTitle drops both.
+// Extras can ride along on the title. At the end, in any order: " [fs:3]"
+// counts clicks on the page's full screen button, which is how it asks the
+// plugin to make the window fill the screen, and " [lo:+0.4]" is the lyric
+// timing in use, in seconds. The page's debug mode puts "[...] " at the
+// front. parseTitle drops them all.
+function stripMarkers(title) {
+  var s = String(title || "")
+  var marker = /\s\[(?:fs|lo):[^\]]*\]\s*$/
+  while (marker.test(s)) s = s.replace(marker, "")
+  return s
+}
+
 function fullscreenCount(title) {
-  var m = /\s\[fs:(\d+)\]\s*$/.exec(String(title || ""))
+  var m = /\s\[fs:(\d+)\]/.exec(String(title || ""))
   return m ? parseInt(m[1], 10) : 0
+}
+
+// The lyric timing the window is using, or null when it does not say.
+function titleLyricOffset(title) {
+  var m = /\s\[lo:([+-]?\d+(?:\.\d+)?)\]/.exec(String(title || ""))
+  return m ? parseFloat(m[1]) : null
 }
 
 function sameText(a, b) {
