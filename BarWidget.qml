@@ -239,8 +239,9 @@ Panel {
 
   function pick(key) {
     if (!svc || !key) return
+    // The panel stays open, so you can click through stations and see what
+    // each is playing. Click outside it, or press Escape, to close it.
     svc.setStation(key)
-    root.close()
   }
 
   component SwitchRow: Item {

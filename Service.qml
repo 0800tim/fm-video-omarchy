@@ -405,13 +405,30 @@ Item {
     if (key === "") return
     var changed = key !== station
     if (changed) {
+      stationSetAt = Date.now()
       station = key
       feed = []
       saveState()
       loadFeed()
     }
     if (!windowOpen) openWindow()
-    else if (changed) windowCommand(["switch", address()], function(data) { root.takeState(data) })
+    else if (changed) switchWindow()
+  }
+
+  // Reopen the window on the current station. Clicking through stations
+  // quickly would start several of these at once, so only one runs at a
+  // time, and the last station asked for wins.
+  property double stationSetAt: 0
+  property bool switching: false
+  property bool switchAgain: false
+  function switchWindow() {
+    if (switching) { switchAgain = true; return }
+    switching = true
+    windowCommand(["switch", address()], function(data) {
+      root.takeState(data)
+      root.switching = false
+      if (root.switchAgain) { root.switchAgain = false; root.switchWindow() }
+    })
   }
 
   onWindowOpenChanged: {
@@ -446,6 +463,9 @@ Item {
   // Someone picked another station inside the window: follow it.
   onTitleInfoChanged: {
     if (!titleInfo || !titleInfo.station) return
+    // Not while the plugin itself is changing station: the old window is
+    // still about for a moment and would pull the choice back.
+    if (switching || Date.now() - stationSetAt < 6000) return
     var shown = Model.findStation(stations, titleInfo.station)
     var key = shown ? (shown.slug || shown.id) : ""
     if (key !== "" && key !== station && shown !== stationObject) {
