@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Tim Thomas",
   "license": "MIT",
-  "description": "Your favourite radio stations as nonstop music videos, right in your Omarchy bar. Pick from over 200 stations around the world and watch what they are playing in a small window that floats above your work, with none of the radio ad breaks or chatter. Sing along as karaoke lyrics light up word by word, in the bar and on the video. Listen live with a MilkDrop visualiser, or dive into thousands of hours of festival sets, concerts, channels by style and decade, and playlists. Free, with no account needed.",
+  "description": "Your favourite radio stations as nonstop music videos, ad-free, right in your Omarchy bar. Pick from over 200 stations around the world and watch what they are playing in a small window that floats above your work. Sing along as karaoke lyrics light up word by word, in the bar and on the video. Listen live with a MilkDrop visualiser, or dive into thousands of hours of festival sets, concerts, channels by style and decade, and playlists. Free, with no account needed.",
   "kinds": [
     "service",
     "bar-widget"

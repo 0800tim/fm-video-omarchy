@@ -1,8 +1,8 @@
 # FM.video for Omarchy
 
-**Your favourite radio stations as nonstop music videos, right in your Omarchy bar.**
+**Your favourite radio stations as nonstop music videos, ad-free, right in your Omarchy bar.**
 
-Pick from over 200 stations around the world and watch what they are playing in a small window that floats above your work, with none of the radio ad breaks or chatter. Sing along as karaoke lyrics light up word by word. Listen live with a MilkDrop visualiser, or dive into thousands of hours of festival sets, concerts, channels and playlists. Free, with no account needed.
+Pick from over 200 stations around the world and watch what they are playing in a small window that floats above your work. Sing along as karaoke lyrics light up word by word. Listen live with a MilkDrop visualiser, or dive into thousands of hours of festival sets, concerts, channels and playlists. Free, with no account needed.
 
 ![The bar showing a lyric line, with the FM.video window floating over a terminal](preview.png)
 
@@ -14,7 +14,7 @@ omarchy plugin add https://github.com/0800tim/fm-video-omarchy.git --enable
 
 ## What you get
 
-- **Radio you can watch.** The songs a station plays, back to back as music videos. No ad breaks, no talk, and you can skip any song.
+- **Radio you can watch.** The songs a station plays, back to back as music videos, ad-free. Skip any song you like.
 - **The song in your bar.** The song a station is playing now, with play, pause and next.
 - **Karaoke in the bar.** When a song has timed lyrics, the bar shows the line being sung and the words light up as they are sung.
 
