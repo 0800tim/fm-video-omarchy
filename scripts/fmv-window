@@ -16,7 +16,7 @@
 #
 # The window is an ordinary web page in a chromeless browser window. Hyprland
 # is asked to float it and pin it, so it stays on top on every workspace.
-# Needs Hyprland with the Lua config that Omarchy 4.5 and later ship, and jq.
+# Needs Hyprland with the Lua config that Omarchy 4 ships, and jq.
 
 set -uo pipefail
 

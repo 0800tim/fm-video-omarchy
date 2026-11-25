@@ -29,7 +29,7 @@ Radio with music videos, on your desktop. See what a station is playing in your 
 
 ## What you need
 
-- Omarchy 4.5 or later (the Quattro shell, with Hyprland's Lua config).
+- Omarchy 4 (the Quattro shell, with Hyprland's Lua config). Built and tested on Omarchy 4.0.4.
 - A Chromium kind of browser. Omarchy ships Chromium. Chrome, Brave, Edge, Vivaldi and Helium work too if one of them is your default browser.
 - `curl` and `jq`. Omarchy ships both.
 
@@ -209,7 +209,7 @@ No code is ever loaded from the network. Only data.
 ## If something is not right
 
 - **No sound when the window opens.** Click the video once. Browsers sometimes hold sound back until you do.
-- **The window is tiled, not floating.** Your Hyprland is not using the Lua config. Omarchy 4.5 and later do.
+- **The window is tiled, not floating.** Your Hyprland is not using the Lua config. Omarchy 4 does.
 - **The bar shows nothing.** Run `omarchy-shell plugin.fm.video status`. If `error` says FM.video cannot be reached, check your connection.
 - **After changing the plugin's files nothing changes.** Run `omarchy restart shell`.
 
