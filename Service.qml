@@ -23,7 +23,7 @@ Item {
   property var geometry: null                 // { x, y, w, h } of the video window
   property var favourites: []                 // station keys, in the order they were added
   property bool live: false                   // play the station's own broadcast, not the videos
-  property bool visualiser: true              // draw the visualiser while live
+  property bool visualiser: false             // draw the visualiser while live (heavy on the processor)
   property bool stateLoaded: false
 
   // ---- From the API.
