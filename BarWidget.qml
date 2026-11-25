@@ -52,6 +52,12 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
+  // A light theme gets the logo drawn for light backgrounds.
+  readonly property bool lightPanel: {
+    var c = Commons.Color.popups.background
+    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.6
+  }
+
   readonly property string glyphRadio: "\u{F0439}"
   readonly property string glyphPlay: "\u{F040A}"
   readonly property string glyphPause: "\u{F03E4}"
@@ -309,30 +315,20 @@ Panel {
           : !root.windowOpen ? "ON AIR NOW" : !root.playing ? "PAUSED" : root.windowLive ? "LIVE" : "PLAYING"
         foreground: root.foreground
         fontFamily: root.fontFamily
-        // The FM.video mark, top right. Click it for the full app.
+        // The FM.video logo, top right: the brand's own lockup, drawn as
+        // outlines so it needs no font. Click it for the full app.
         trailingControl: Component {
           Item {
-            implicitWidth: mark.implicitWidth
-            implicitHeight: mark.implicitHeight
+            implicitHeight: Style.space(26)
+            implicitWidth: Math.round(implicitHeight * 436 / 96)
 
-            Row {
-              id: mark
-              Text {
-                textFormat: Text.PlainText
-                text: "FM"
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.title
-                font.bold: true
-              }
-              Text {
-                textFormat: Text.PlainText
-                text: ".video"
-                color: "#ff2e9a"
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.title
-                font.bold: true
-              }
+            Image {
+              anchors.fill: parent
+              fillMode: Image.PreserveAspectFit
+              sourceSize.width: parent.implicitWidth * 3
+              sourceSize.height: parent.implicitHeight * 3
+              smooth: true
+              source: Qt.resolvedUrl(root.lightPanel ? "assets/fmvideo-lockup-onlight.svg" : "assets/fmvideo-lockup.svg")
             }
 
             MouseArea {

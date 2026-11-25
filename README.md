@@ -162,4 +162,6 @@ The shell notices changed files by itself, but it does not always let go of the 
 
 MIT. See [LICENSE](LICENSE).
 
+The FM.video name and logo (the files in `assets/`) are FM.video's brand and are not covered by the MIT licence. They are here so the plugin can show them.
+
 FM.video is not connected with YouTube or with any of the radio stations. Videos play through YouTube's own player.
