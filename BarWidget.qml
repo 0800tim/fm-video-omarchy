@@ -654,6 +654,17 @@ Panel {
 
       Text {
         width: parent.width
+        textFormat: Text.PlainText
+        text: "Use the full app for many more features, including charts, dynamic playlists, channels, thousands of hours of full live sets, plus much, much more."
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+      }
+
+      Text {
+        width: parent.width
         visible: root.rows.length === 0
         textFormat: Text.PlainText
         text: root.svc && root.svc.stations.length === 0 ? "Loading stations" : "No stations match"
