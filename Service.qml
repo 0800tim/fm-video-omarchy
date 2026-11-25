@@ -149,10 +149,11 @@ Item {
           var cut = text.lastIndexOf("\n")
           var status = parseInt(cut >= 0 ? text.slice(cut + 1) : "0", 10) || 0
           var data = null
+          var body = cut >= 0 ? text.slice(0, cut) : ""
           if (status >= 200 && status < 300) {
-            try { data = JSON.parse(text.slice(0, cut)) } catch (e) { status = 0 }
+            try { data = JSON.parse(body) } catch (e) { status = 0 }
           }
-          if (request.done) request.done(status, data)
+          if (request.done) request.done(status, data, body.slice(0, 500))
           request.destroy(500)
         }
       }
@@ -176,20 +177,24 @@ Item {
     return list
   }
 
-  // 403 with the right key means this install's token is unknown or has
-  // been turned off. Stop asking for an hour, and register again at most
-  // once a day.
-  function refused() {
+  // A 403 that talks about the install means this copy's token is unknown
+  // or has been turned off. Stop asking for an hour and register again, at
+  // most once a day. The old token is kept until a new one arrives. Any
+  // other 403 (a server being restarted, a firewall having a moment) is
+  // only a reason to wait a minute: it says nothing about this install.
+  function refused(body) {
+    if (!/install/i.test(String(body || ""))) {
+      pausedUntil = Math.max(pausedUntil, Date.now() + 60000)
+      return
+    }
     pausedUntil = Date.now() + 3600000
-    if (installToken === "") return
-    installToken = ""
     installRefused = true
     lastError = "FM.video is not available on this install"
     registerInstall()
   }
 
   function registerInstall() {
-    if (!stateLoaded || !tokenLoaded || installToken !== "") return
+    if (!stateLoaded || !tokenLoaded || (installToken !== "" && !installRefused)) return
     if (Date.now() - lastRegisterAt < 86400000) return
     lastRegisterAt = Date.now()
     saveState()
@@ -224,7 +229,7 @@ Item {
   Timer {
     interval: 3600000
     repeat: true
-    running: root.stateLoaded && root.tokenLoaded && root.installToken === ""
+    running: root.stateLoaded && root.tokenLoaded && (root.installToken === "" || root.installRefused)
     triggeredOnStart: true
     onTriggered: root.registerInstall()
   }
@@ -232,16 +237,16 @@ Item {
   // On a first run the token is still on its way. Requests wait for it,
   // for a few seconds at most, so they are not refused for lacking one.
   function waitingForToken(tries) {
-    return installToken === "" && (!tokenLoaded || registering) && (tries || 0) < 8
+    return (installToken === "" || installRefused) && (!tokenLoaded || registering) && (tries || 0) < 8
   }
 
   function api(path, done, tries) {
     if (waitingForToken(tries)) { delay(1500, function() { root.api(path, done, (tries || 0) + 1) }); return }
     if (Date.now() < pausedUntil) { done(429, null); return }
     var request = requestComponent.createObject(root, {
-      done: function(status, data) {
+      done: function(status, data, body) {
         if (status === 429) root.pausedUntil = Date.now() + 60000
-        if (status === 403) root.refused()
+        if (status === 403) root.refused(body)
         done(status, data)
       }
     })
@@ -254,9 +259,9 @@ Item {
     if (waitingForToken(tries)) { delay(1500, function() { root.apiPost(path, body, done, (tries || 0) + 1) }); return }
     if (Date.now() < pausedUntil) { done(429, null); return }
     var request = requestComponent.createObject(root, {
-      done: function(status, data) {
+      done: function(status, data, body) {
         if (status === 429) root.pausedUntil = Date.now() + 30000
-        if (status === 403) root.refused()
+        if (status === 403) root.refused(body)
         done(status, data)
       }
     })
