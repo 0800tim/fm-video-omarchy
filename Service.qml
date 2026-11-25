@@ -272,7 +272,7 @@ Item {
 
   function loadStations() {
     api("/api/stations", function(status, data) {
-      if (status === 200 && data && data.length) { root.stations = data; root.lastError = "" }
+      if (status === 200 && data && data.length) { root.stations = data; root.lastError = ""; root.loadFeed() }
       else { root.lastError = "Could not reach FM.video"; stationsRetry.restart() }
     })
     if (country === "") api("/api/geo", function(status, data) {
@@ -288,6 +288,9 @@ Item {
   function loadFeed() {
     if (!stateLoaded) return
     if (inList) { loadListTracks(); return }
+    // A station's plays are asked for by its id, which comes from the
+    // station list. Until that list is in, wait: it asks again when it is.
+    if (stations.length === 0 && Model.mixCountry(station) === "") return
     var wanted = station
     lastFeedAt = Date.now()
     api("/api/feed/" + encodeURIComponent(feedKey()) + "/20", function(status, data) {
