@@ -208,9 +208,10 @@ test("next and previous station follow the picker's order", () => {
 })
 
 test("window title: next and previous station counters", () => {
-  const title = "Diggy \u00b7 Sammy Virji \u00b7 George FM Live [nx:3] [pv:1] [fs:2]"
+  const title = "Diggy \u00b7 Sammy Virji \u00b7 George FM Live [nx:3] [app:1] [pv:1] [fs:2]"
   assert.equal(Model.markerCount(title, "nx"), 3)
   assert.equal(Model.markerCount(title, "pv"), 1)
+  assert.equal(Model.markerCount(title, "app"), 1)
   assert.equal(Model.markerCount("a \u00b7 b \u00b7 c", "nx"), 0)
   const t = Model.parseTitle(title)
   assert.equal(t.station, "George FM")

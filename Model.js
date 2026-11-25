@@ -34,7 +34,7 @@ function parseTitle(title) {
 // front. parseTitle drops them all.
 function stripMarkers(title) {
   var s = String(title || "")
-  var marker = /\s\[(?:fs|lo|nx|pv):[^\]]*\]\s*$/
+  var marker = /\s\[(?:fs|lo|nx|pv|app):[^\]]*\]\s*$/
   while (marker.test(s)) s = s.replace(marker, "")
   return s
 }

@@ -59,7 +59,7 @@ In the panel:
 - **Stop**, the square button, closes the window and stops the music.
 - **Listen live** plays the station's own broadcast in place of its music videos, for stations that have one.
 - Click a song under **Just played** to watch its video.
-- **Install the FM.video app**, at the bottom, adds the full FM.video site to your app launcher as an app of its own and opens it. After that the button reads **Open the FM.video app**. It uses Omarchy's own web app installer. To take it out again: `omarchy-webapp-remove FM.video`.
+- **Install the FM.video app**, at the bottom, adds the full FM.video site to your app launcher as an app of its own and opens it on the station you are on. The mini player stops, so the two do not play at once. After that the button reads **Open the FM.video app**. It uses Omarchy's own web app installer. To take it out again: `omarchy-webapp-remove FM.video`.
 - **Lyrics in the bar** shows the line being sung in place of the song name.
 - **Lyrics on the video** shows the line over the video as well.
 - **Small, Medium, Large, Full screen** set the size of the video window.

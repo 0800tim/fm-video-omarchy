@@ -495,8 +495,12 @@ Item {
   function openApp() {
     var s = stationObject
     var url = C.siteBase + (s && s.slug ? "/station/" + encodeURIComponent(s.slug) : "")
+    // The site plays by itself when it opens, so say which it should play,
+    // and stop the mini player so the two do not play over each other.
+    if (s && s.slug && windowLive) url += "?live=1"
     appRun.command = [helper, "app", url]
     appRun.running = true
+    closeWindow()
   }
 
   Process {
@@ -586,17 +590,21 @@ Item {
   property int fullscreenSeen: 0
   property int nextSeen: 0
   property int previousSeen: 0
+  property int appSeen: 0
   onWindowTitleChanged: {
     var count = Model.fullscreenCount(windowTitle)
     var nx = Model.markerCount(windowTitle, "nx")
-    var pv = Model.markerCount(windowTitle, "pv")
+    var app = Model.markerCount(windowTitle, "app")
     if (toplevel !== fullscreenWindow) {
+      appSeen = app
       fullscreenWindow = toplevel
       fullscreenSeen = count
       nextSeen = nx
       previousSeen = pv
       return
     }
+    // The FM.video logo on the page: open the full app.
+    if (app !== appSeen) { appSeen = app; openApp(); return }
     if (nx !== nextSeen) { nextSeen = nx; stepStation(1) }
     if (pv !== previousSeen) { previousSeen = pv; stepStation(-1) }
     if (count === fullscreenSeen) return
