@@ -482,6 +482,26 @@ Item {
     saveState()
   }
 
+  // The full FM.video site as an app of its own. The first use installs a
+  // launcher for it with Omarchy's web app installer.
+  property bool appInstalled: false
+  function openApp() {
+    var s = stationObject
+    var url = C.siteBase + (s && s.slug ? "/station/" + encodeURIComponent(s.slug) : "")
+    appRun.command = [helper, "app", url]
+    appRun.running = true
+  }
+
+  Process {
+    id: appRun
+    command: [root.helper, "app-installed"]
+    running: true
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.appInstalled = text.trim() === "true"
+    }
+  }
+
   // Pick a station. Opens the video window if it is closed.
   function setStation(key) {
     key = String(key || "")
@@ -681,6 +701,7 @@ Item {
     function showWindow(): void { root.showWindow() }
     function hideWindow(): void { root.hideWindow() }
     function stop(): void { root.closeWindow() }
+    function openApp(): void { root.openApp() }
     function playPause(): void { root.playPause() }
     function next(): void { root.next() }
     function previous(): void { root.previous() }

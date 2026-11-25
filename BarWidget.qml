@@ -642,6 +642,18 @@ Panel {
         }
       }
 
+      Button {
+        width: parent.width
+        text: root.svc && root.svc.appInstalled ? "Open the FM.video app" : "Install the FM.video app"
+        tooltipText: root.svc && root.svc.appInstalled
+          ? "The full site in a window of its own"
+          : "Adds FM.video to your app launcher and opens it"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        bordered: true
+        onClicked: if (root.svc) { root.svc.openApp(); root.close() }
+      }
+
       Text {
         width: parent.width
         visible: root.rows.length === 0

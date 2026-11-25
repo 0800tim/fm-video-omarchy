@@ -11,6 +11,8 @@
 #   fmv-window size <w> <h>            resize it, keeping its top right corner where it is
 #   fmv-window fullscreen              fill the screen, or go back to the small window
 #   fmv-window state                   print where it is, as JSON
+#   fmv-window app [url]               open FM.video as its own app, installing it the first time
+#   fmv-window app-installed           print true or false
 #
 # The window is an ordinary web page in a chromeless browser window. Hyprland
 # is asked to float it and pin it, so it stays on top on every workspace.
@@ -26,6 +28,8 @@ PROFILE_DIR="$STATE_DIR/browser"
 # Hiding the window moves it to a workspace that is never shown. It keeps
 # playing there.
 HIDDEN_WORKSPACE="special:fmvideo"
+
+APP_DESKTOP="$HOME/.local/share/applications/FM.video.desktop"
 
 CLASS_RE='^[A-Za-z-]+-fm\.video__mini-'
 
@@ -272,11 +276,29 @@ drag)
   load_drag
   state
   ;;
+app-installed)
+  [[ -f $APP_DESKTOP ]] && echo true || echo false
+  ;;
+app)
+  # The full FM.video site as a web app of its own, in the app launcher.
+  # Omarchy's own installer makes the launcher and fetches the site's icon.
+  url="${2:-https://fm.video}"
+  [[ $url == https://fm.video* && ! $url =~ [[:space:]] ]] || url="https://fm.video"
+  if [[ ! -f $APP_DESKTOP ]] && command -v omarchy-webapp-install >/dev/null 2>&1; then
+    omarchy-webapp-install "FM.video" "https://fm.video" "" >/dev/null 2>&1 || true
+  fi
+  if command -v omarchy-launch-webapp >/dev/null 2>&1; then
+    setsid omarchy-launch-webapp "$url" >/dev/null 2>&1 &
+  else
+    setsid "$(browser)" "--app=$url" >/dev/null 2>&1 &
+  fi
+  [[ -f $APP_DESKTOP ]] && echo true || echo false
+  ;;
 state)
   state
   ;;
 *)
-  echo "usage: fmv-window open <url> [x y w h] | switch <url> | close | hide | show [x y w h] | key <key> | size <w> <h> | fullscreen | state" >&2
+  echo "usage: fmv-window open <url> [x y w h] | switch <url> | close | hide | show [x y w h] | key <key> | size <w> <h> | fullscreen | state | app [url] | app-installed" >&2
   exit 2
   ;;
 esac
