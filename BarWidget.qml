@@ -315,12 +315,11 @@ Panel {
           : !root.windowOpen ? "ON AIR NOW" : !root.playing ? "PAUSED" : root.windowLive ? "LIVE" : "PLAYING"
         foreground: root.foreground
         fontFamily: root.fontFamily
-        // The FM.video logo, top right: the brand's own lockup, drawn as
-        // outlines so it needs no font. Click it for the full app.
+        // The FM.video mark, top right. Click it for the full app.
         trailingControl: Component {
           Item {
-            implicitHeight: Style.space(26)
-            implicitWidth: Math.round(implicitHeight * 436 / 96)
+            implicitHeight: Style.space(28)
+            implicitWidth: implicitHeight
 
             Image {
               anchors.fill: parent
@@ -328,7 +327,7 @@ Panel {
               sourceSize.width: parent.implicitWidth * 3
               sourceSize.height: parent.implicitHeight * 3
               smooth: true
-              source: Qt.resolvedUrl(root.lightPanel ? "assets/fmvideo-lockup-onlight.svg" : "assets/fmvideo-lockup.svg")
+              source: Qt.resolvedUrl(root.lightPanel ? "assets/fmvideo-mark-onlight.svg" : "assets/fmvideo-mark.svg")
             }
 
             MouseArea {
@@ -756,6 +755,19 @@ Panel {
         font.pixelSize: Style.font.caption
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
+      }
+
+      // The full logo in one colour, as a quiet sign off.
+      Image {
+        anchors.horizontalCenter: parent.horizontalCenter
+        height: Style.space(22)
+        width: Math.round(height * 436 / 96)
+        fillMode: Image.PreserveAspectFit
+        sourceSize.width: width * 3
+        sourceSize.height: height * 3
+        smooth: true
+        opacity: 0.6
+        source: Qt.resolvedUrl(root.lightPanel ? "assets/fmvideo-lockup-black.svg" : "assets/fmvideo-lockup-white.svg")
       }
 
       Text {
