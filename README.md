@@ -1,13 +1,20 @@
 # FM.video for Omarchy
 
-Radio with music videos, on your desktop. See what a station is playing in your bar, watch its music videos in a small window that stays on top, and sing along with the lyrics as they light up.
+**Your favourite radio stations as nonstop music videos, right in your Omarchy bar.**
+
+Pick from over 200 stations around the world and watch what they are playing in a small window that floats above your work, with none of the radio ad breaks or chatter. Sing along as karaoke lyrics light up word by word. Listen live with a MilkDrop visualiser, or dive into thousands of hours of festival sets, concerts, channels and playlists. Free, with no account needed.
 
 ![The bar showing a lyric line, with the FM.video window floating over a terminal](preview.png)
+
+```bash
+omarchy plugin add https://github.com/0800tim/fm-video-omarchy.git --enable
+```
 
 [FM.video](https://fm.video) turns radio stations into music video channels. This plugin puts it in the [Omarchy](https://omarchy.org) bar. More about it at [plugin.fm.video](https://plugin.fm.video).
 
 ## What you get
 
+- **Radio you can watch.** The songs a station plays, back to back as music videos. No ad breaks, no talk, and you can skip any song.
 - **The song in your bar.** The song a station is playing now, with play, pause and next.
 - **Karaoke in the bar.** When a song has timed lyrics, the bar shows the line being sung and the words light up as they are sung.
 
@@ -16,7 +23,8 @@ Radio with music videos, on your desktop. See what a station is playing in your 
 - **A small video window.** The music videos play in a little window that floats on top of your other windows and follows you to every workspace. Drag it where you like. Make it bigger, or fill the screen.
 - **Over 200 radio stations.** Your country first, then your neighbours. Search by name, style, city or country, and heart your favourites to keep them at the top.
 - **Listen live.** Hear a station's own broadcast, with a visualiser if you want one, or with nothing on screen at all.
-- **Channels, live sets and playlists.** Music by style and decade, thousands of hours of festival and concert sets, and playlists other people have made.
+- **Thousands of hours of live sets.** Glastonbury, Coachella, Tomorrowland, Boiler Room, Red Rocks, MTV Unplugged and dozens more festivals, venues and sessions.
+- **Channels and playlists.** Music by style and decade, and playlists other people have made.
 - **Lyrics on the video in eight styles**, from plain to a dot matrix sign.
 
 | Stations | Live sets |

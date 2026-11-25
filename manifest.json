@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Tim Thomas",
   "license": "MIT",
-  "description": "Radio with music videos on your desktop. See what a station is playing in the bar, pick from over 200 stations, and watch the music videos in a small window that stays on top on every workspace. The lyric line shows in the bar and lights up as it is sung. Listen live with a visualiser, and play channels, festival sets and playlists from FM.video.",
+  "description": "Your favourite radio stations as nonstop music videos, right in your Omarchy bar. Pick from over 200 stations around the world and watch what they are playing in a small window that floats above your work, with none of the radio ad breaks or chatter. Sing along as karaoke lyrics light up word by word, in the bar and on the video. Listen live with a MilkDrop visualiser, or dive into thousands of hours of festival sets, concerts, channels by style and decade, and playlists. Free, with no account needed.",
   "kinds": [
     "service",
     "bar-widget"

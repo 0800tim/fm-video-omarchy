@@ -303,6 +303,9 @@ Item {
     var owner = feedOwner
     if (feedStation === owner) return
     lastFeedAt = Date.now()
+    // Never ask with an empty name: the kind and the name are set one
+    // after the other, and this can be called in between.
+    if (listKind !== "favourites" && listValue === "") return
     var path = listKind === "channel" ? "/api/channels/" + encodeURIComponent(listValue) + "/feed?count=50"
       : listKind === "playlist" ? "/api/playlists/pub/" + encodeURIComponent(listValue) : ""
     if (path === "") { feed = []; feedStation = owner; return }
@@ -695,9 +698,10 @@ Item {
     var changed = kind !== listKind || value !== listValue
     if (changed) {
       stationSetAt = Date.now()
-      listKind = kind
+      // The name first, so nothing sees the new kind with the old name.
       listValue = kind === "favourites" ? "" : value
       listName = String(name || (kind === "favourites" ? "Your favourites" : value))
+      listKind = kind
       if (live) live = false
       saveState()
       loadFeed()
