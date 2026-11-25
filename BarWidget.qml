@@ -67,7 +67,11 @@ Panel {
     if (!svc || svc.song === "") return ""
     return svc.song + (svc.artist !== "" ? " · " + svc.artist : "")
   }
+  // Set "hideExplicitLyrics": true in shell.json to keep the words of songs
+  // marked explicit out of the bar.
+  readonly property bool hideExplicit: setting("hideExplicitLyrics", false) === true
   readonly property bool showingLyric: svc !== null && svc.barLyrics && svc.lyricLine !== ""
+    && !(hideExplicit && svc.currentPlay && svc.currentPlay.isExplicit === true)
   readonly property string labelText: {
     if (!svc || vertical) return ""
     if (!windowOpen && !showSongWhenClosed) return ""
@@ -332,6 +336,36 @@ Panel {
         label: "Lyrics on the video"
         checked: root.svc ? root.svc.videoLyrics : false
         onToggled: if (root.svc) root.svc.setVideoLyrics(!root.svc.videoLyrics)
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(6)
+        visible: root.windowOpen
+
+        ButtonGroup {
+          options: [
+            { value: "small", label: "Small" },
+            { value: "medium", label: "Medium" },
+            { value: "large", label: "Large" },
+            { value: "full", label: "Full screen" }
+          ]
+          value: root.svc ? root.svc.windowSize : ""
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          focusable: false
+          onChanged: function(v) { if (root.svc) root.svc.setWindowSize(v) }
+        }
+
+        Text {
+          width: parent.width
+          textFormat: Text.PlainText
+          text: "Hold Super and drag the video to move it. Super and right drag resizes it."
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+        }
       }
 
       PanelSeparator {

@@ -50,6 +50,13 @@ Item {
   readonly property var titleInfo: windowOpen ? Model.parseTitle(windowTitle) : null
   property int windowPid: 0
   property bool opening: false
+  property bool windowFullscreen: false
+  readonly property string windowSize: {
+    if (!windowOpen) return ""
+    if (windowFullscreen) return "full"
+    var w = geometry ? geometry.w : 0
+    return w === 480 ? "small" : w === 720 ? "medium" : w === 1280 ? "large" : ""
+  }
 
   // The browser publishes one media player for each browser process, named
   // after its process id. The window has a browser profile of its own, so
@@ -249,7 +256,9 @@ Item {
   function takeState(data) {
     if (!data) return
     if (data.open && data.pid) windowPid = data.pid
-    if (data.w > 0 && data.h > 0) {
+    windowFullscreen = data.open === true && data.fullscreen === true
+    // A full screen window is not a place to come back to.
+    if (data.w > 0 && data.h > 0 && data.fullscreen !== true) {
       var g = { x: data.x, y: data.y, w: data.w, h: data.h }
       if (!geometry || geometry.x !== g.x || geometry.y !== g.y || geometry.w !== g.w || geometry.h !== g.h) {
         geometry = g
@@ -274,6 +283,15 @@ Item {
   function closeWindow() {
     if (!windowOpen) return
     windowCommand(["close"], function(data) { root.takeState(data) })
+  }
+
+  // "small", "medium", "large" or "full".
+  function setWindowSize(name) {
+    if (!windowOpen) return
+    var sizes = { small: [480, 270], medium: [720, 405], large: [1280, 720] }
+    var done = function(data) { root.takeState(data) }
+    if (name === "full") { if (!windowFullscreen) windowCommand(["fullscreen"], done) }
+    else if (sizes[name]) windowCommand(["size", String(sizes[name][0]), String(sizes[name][1])], done)
   }
 
   function toggleWindow() {
@@ -324,6 +342,7 @@ Item {
       loadFeed()
     } else {
       windowPid = 0
+      windowFullscreen = false
       lyricsFor = ""
       clearLyrics()
     }
@@ -331,7 +350,7 @@ Item {
 
   // Someone picked another station inside the window: follow it.
   onTitleInfoChanged: {
-    if (!titleInfo || !titleInfo.station || Model.mixCountry(station) !== "") return
+    if (!titleInfo || !titleInfo.station) return
     var shown = Model.findStation(stations, titleInfo.station)
     var key = shown ? (shown.slug || shown.id) : ""
     if (key !== "" && key !== station && shown !== stationObject) {
@@ -422,6 +441,7 @@ Item {
     function next(): void { root.next() }
     function previous(): void { root.previous() }
     function station(key: string): void { root.setStation(key) }
+    function size(name: string): void { root.setWindowSize(name) }
     function status(): string {
       return JSON.stringify({
         station: root.station, stationName: root.stationName, song: root.song, artist: root.artist,

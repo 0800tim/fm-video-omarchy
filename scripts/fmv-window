@@ -6,6 +6,8 @@
 #   fmv-window switch <url>            open it again on a new address, then close the old one
 #   fmv-window close                   close it
 #   fmv-window key <key>               press one of the page's keys (space, N, P, L, M)
+#   fmv-window size <w> <h>            resize it, keeping its top right corner where it is
+#   fmv-window fullscreen              fill the screen, or go back to the small window
 #   fmv-window state                   print where it is, as JSON
 #
 # The window is an ordinary web page in a chromeless browser window. Hyprland
@@ -29,7 +31,8 @@ state() {
   clients | jq -c '
     if length == 0 then { open: false }
     else .[-1] | { open: true, address: .address, pid: .pid, title: .title,
-                   x: .at[0], y: .at[1], w: .size[0], h: .size[1], pinned: .pinned, floating: .floating }
+                   x: .at[0], y: .at[1], w: .size[0], h: .size[1], pinned: .pinned, floating: .floating,
+                   fullscreen: (.fullscreen != 0) }
     end'
 }
 
@@ -147,11 +150,45 @@ key)
     dispatch "hl.dsp.send_shortcut({ mods = \"\", key = \"$key\", window = \"address:$a\" })"
   done
   ;;
+size)
+  w="${2:-}" h="${3:-}"
+  is_int "$w" && is_int "$h" && (( w >= 160 && h >= 90 )) || exit 1
+  read -r address x y old_w full < <(clients | jq -r 'if length == 0 then "" else .[-1] | "\(.address) \(.at[0]) \(.at[1]) \(.size[0]) \(.fullscreen)" end')
+  [[ -n ${address:-} ]] || { state; exit 0; }
+  if [[ $full != 0 ]]; then
+    dispatch "hl.dsp.window.fullscreen({ window = \"address:$address\", mode = \"fullscreen\" })"
+    dispatch "hl.dsp.window.pin({ window = \"address:$address\", action = \"enable\" })"
+    sleep 0.2
+    read -r x y old_w < <(clients | jq -r '.[-1] | "\(.at[0]) \(.at[1]) \(.size[0])"')
+  fi
+  # Keep the right edge still, and keep the left edge on the screen it is on.
+  new_x=$(( x + old_w - w ))
+  min_x=$(hyprctl monitors -j | jq -r --argjson x "$(( x + old_w - 1 ))" --argjson y "$y" '
+    [.[] | select((.x <= $x) and ($x < .x + (.width / .scale)) and (.y <= $y) and ($y < .y + (.height / .scale))) | .x][0] // empty')
+  if is_int "${min_x:-}" && (( new_x < min_x )); then new_x=$min_x; fi
+  dispatch "hl.dsp.window.resize({ window = \"address:$address\", x = $w, y = $h })"
+  dispatch "hl.dsp.window.move({ window = \"address:$address\", x = $new_x, y = $y })"
+  state
+  ;;
+fullscreen)
+  read -r address full < <(clients | jq -r 'if length == 0 then "" else .[-1] | "\(.address) \(.fullscreen)" end')
+  [[ -n ${address:-} ]] || { state; exit 0; }
+  # Hyprland will not make a pinned window full screen, so the pin comes off
+  # for as long as it fills the screen and goes back on afterwards.
+  if [[ $full == 0 ]]; then
+    dispatch "hl.dsp.window.pin({ window = \"address:$address\", action = \"disable\" })"
+    dispatch "hl.dsp.window.fullscreen({ window = \"address:$address\", mode = \"fullscreen\" })"
+  else
+    dispatch "hl.dsp.window.fullscreen({ window = \"address:$address\", mode = \"fullscreen\" })"
+    dispatch "hl.dsp.window.pin({ window = \"address:$address\", action = \"enable\" })"
+  fi
+  state
+  ;;
 state)
   state
   ;;
 *)
-  echo "usage: fmv-window open <url> [x y w h] | switch <url> | close | key <key> | state" >&2
+  echo "usage: fmv-window open <url> [x y w h] | switch <url> | close | key <key> | size <w> <h> | fullscreen | state" >&2
   exit 2
   ;;
 esac
