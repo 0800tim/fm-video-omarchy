@@ -271,10 +271,19 @@ Item {
     onTriggered: root.loadLyricOffset()
   }
 
+  // The window says which video is on, in its title. That works for every
+  // source. Matching the song against the list of plays is the fallback.
+  readonly property string windowVideo: windowOpen ? Model.titleVideo(windowTitle) : ""
+  onWindowVideoChanged: {
+    // Give the desktop a moment to report the new video's length.
+    var video = windowVideo
+    delay(1500, function() { if (root.windowVideo === video) root.loadLyrics() })
+  }
+
   function loadLyrics() {
     var play = currentPlay
-    if (!wantLyrics || !play || !play.youTubeVideoId) { lyricsFor = ""; clearLyrics(); return }
-    var video = String(play.youTubeVideoId)
+    var video = windowVideo !== "" ? windowVideo : play && play.youTubeVideoId ? String(play.youTubeVideoId) : ""
+    if (!wantLyrics || video === "") { lyricsFor = ""; clearLyrics(); return }
     if (video === lyricsFor) return
     lyricsFor = video
     clearLyrics()
@@ -283,12 +292,12 @@ Item {
     // with the video's real length, gets the lines timed for this cut.
     var seconds = player && player.length > 0 ? Math.round(player.length) : 0
     var path = "/api/lyrics/video/" + encodeURIComponent(video) + "?"
-    if (play.songId) path += "song=" + encodeURIComponent(play.songId) + "&"
+    if (play && play.songId) path += "song=" + encodeURIComponent(play.songId) + "&"
     if (seconds >= 20) path += "d=" + seconds
 
     api(path, function(status, data) {
       if (root.lyricsFor !== video) return
-      if (status === 404 && play.songId) {
+      if (status === 404 && play && play.songId) {
         root.api("/api/lyrics/" + encodeURIComponent(play.songId), function(status2, data2) {
           if (root.lyricsFor !== video) return
           if (status2 === 200 && data2 && data2.synced) root.lyricLines = Model.parseLrc(data2.synced)
@@ -303,7 +312,7 @@ Item {
   }
 
   onCurrentPlayChanged: {
-    loadLyrics()
+    if (windowVideo === "") loadLyrics()
     // The window has moved on to a song the list does not have yet.
     if (windowOpen && song !== "" && !currentPlay && Date.now() - lastFeedAt > 8000) loadFeed()
   }
@@ -691,6 +700,26 @@ Item {
     if (count === fullscreenSeen) return
     fullscreenSeen = count
     windowCommand(["fullscreen"], function(data) { root.takeState(data) })
+  }
+
+  // The page is asking the listener to sign in. Its panel is cramped in a
+  // small window, so bring the window out and make it bigger for as long
+  // as the panel is up, then put it back.
+  readonly property bool windowAuth: windowOpen && Model.titleAuth(windowTitle)
+  property var authRestore: null
+  onWindowAuthChanged: {
+    if (windowAuth) {
+      if (windowHidden) showWindow()
+      var g = geometry
+      if (g && g.w < 720 && !windowFullscreen) {
+        authRestore = { w: g.w, h: g.h }
+        windowCommand(["size", "720", "405"], function(data) { root.takeState(data) })
+      }
+    } else if (authRestore) {
+      var back = authRestore
+      authRestore = null
+      if (windowOpen) windowCommand(["size", String(back.w), String(back.h)], function(data) { root.takeState(data) })
+    }
   }
 
   // Someone picked another station inside the window: follow it.

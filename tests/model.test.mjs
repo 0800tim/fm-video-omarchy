@@ -142,6 +142,16 @@ test("window title: markers at the end in either order", () => {
   assert.equal(Model.titleLyricOffset("a \u00b7 b \u00b7 c"), null)
 })
 
+test("window title: video id and sign in markers", () => {
+  const title = "bad guy \u00b7 Billie Eilish \u00b7 Cool FM [lo:+0.2] [fs:1] [v:wI5usbhzmbY] [auth:1]"
+  assert.equal(Model.titleVideo(title), "wI5usbhzmbY")
+  assert.equal(Model.titleAuth(title), true)
+  assert.equal(Model.parseTitle(title).station, "Cool FM")
+  assert.equal(Model.titleLyricOffset(title), 0.2)
+  assert.equal(Model.titleVideo("a \u00b7 b \u00b7 c"), "")
+  assert.equal(Model.titleAuth("a \u00b7 b \u00b7 c [v:abcdefg]"), false)
+})
+
 test("window title: live radio", () => {
   const t = Model.parseTitle("Diggy \u00b7 Sammy Virji \u00b7 George FM Live")
   assert.equal(t.station, "George FM")

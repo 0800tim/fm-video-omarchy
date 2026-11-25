@@ -34,7 +34,7 @@ function parseTitle(title) {
 // front. parseTitle drops them all.
 function stripMarkers(title) {
   var s = String(title || "")
-  var marker = /\s\[(?:fs|lo|nx|pv|app):[^\]]*\]\s*$/
+  var marker = /\s\[(?:fs|lo|nx|pv|app|v|auth):[^\]]*\]\s*$/
   while (marker.test(s)) s = s.replace(marker, "")
   return s
 }
@@ -49,6 +49,17 @@ function fullscreenCount(title) {
 function markerCount(title, name) {
   var m = new RegExp("\\s\\[" + name + ":(\\d+)\\]").exec(String(title || ""))
   return m ? parseInt(m[1], 10) : 0
+}
+
+// The YouTube id of the video on now, from " [v:...]", or "".
+function titleVideo(title) {
+  var m = /\s\[v:([A-Za-z0-9_-]{6,20})\]/.exec(String(title || ""))
+  return m ? m[1] : ""
+}
+
+// True while the page is showing its sign in panel: " [auth:1]".
+function titleAuth(title) {
+  return /\s\[auth:1\]/.test(String(title || ""))
 }
 
 // The lyric timing the window is using, or null when it does not say.
