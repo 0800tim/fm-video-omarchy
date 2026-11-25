@@ -70,6 +70,18 @@ set_rule() {
   hyprctl eval "if fmvideo_rule then fmvideo_rule:set_enabled(false) end; fmvideo_rule = hl.window_rule({ match = { class = \"^[A-Za-z-]+-fm\\\\.video__mini-.*\" }, float = true, pin = true, size = { $w, $h }, move = { \"(monitor_w-window_w-24)\", \"64\" }, no_initial_focus = true, tag = \"-default-opacity\", opacity = \"1 1\" })" >/dev/null 2>&1
 }
 
+# Plain drag to move the window. See fmv-drag.lua.
+DRAG_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fmv-drag.lua"
+
+load_drag() {
+  [[ -f $DRAG_SCRIPT && $DRAG_SCRIPT != *"'"* ]] || return 0
+  hyprctl eval "fmvideo_drag_no_binds = nil; dofile('$DRAG_SCRIPT')" >/dev/null 2>&1
+}
+
+unload_drag() {
+  hyprctl eval "if fmvideo_drag then fmvideo_drag.unload() end" >/dev/null 2>&1
+}
+
 launch() {
   local url="$1" bin
   bin=$(browser)
@@ -118,6 +130,7 @@ open)
   old=$(clients | jq -r '[.[].address] | join(" ")')
   if [[ -n $old ]]; then state; exit 0; fi
   set_rule "$w" "$h"
+  load_drag
   launch "$url"
   if address=$(wait_for_new ""); then place "$address" "$x" "$y" "$w" "$h"; fi
   state
@@ -140,6 +153,7 @@ close)
   for a in $(clients | jq -r '.[].address'); do
     dispatch "hl.dsp.window.close({ window = \"address:$a\" })"
   done
+  unload_drag
   # Report where it was, so the plugin can put it back there next time.
   echo "$before" | jq -c '.open = false'
   ;;
@@ -182,6 +196,11 @@ fullscreen)
     dispatch "hl.dsp.window.fullscreen({ window = \"address:$address\", mode = \"fullscreen\" })"
     dispatch "hl.dsp.window.pin({ window = \"address:$address\", action = \"enable\" })"
   fi
+  state
+  ;;
+drag)
+  # Turn plain dragging on for a window that is already open.
+  load_drag
   state
   ;;
 state)

@@ -119,9 +119,53 @@ test("logo addresses: site relative ones get the site in front", () => {
 })
 
 test("mini player address", () => {
-  assert.equal(Model.miniHref("https://fm.video/mini", "george", false), "https://fm.video/mini?station=george")
-  assert.equal(Model.miniHref("https://fm.video/mini", "all-nz", true), "https://fm.video/mini?station=all-nz&lyrics=1")
-  assert.equal(Model.miniHref("https://fm.video/mini", "", false), "https://fm.video/mini")
+  assert.equal(Model.miniHref("https://fm.video/mini", "george", false), "https://fm.video/mini?station=george&shell=omarchy")
+  assert.equal(Model.miniHref("https://fm.video/mini", "all-nz", true), "https://fm.video/mini?station=all-nz&lyrics=1&shell=omarchy")
+  assert.equal(Model.miniHref("https://fm.video/mini", "", false), "https://fm.video/mini?shell=omarchy")
+})
+
+test("window title: full screen counter and debug trail are stripped", () => {
+  assert.deepEqual(Model.parseTitle("Firefly \u00b7 Drax Project \u00b7 ZM [fs:2]"),
+    { song: "Firefly", artist: "Drax Project", station: "ZM" })
+  assert.equal(Model.fullscreenCount("Firefly \u00b7 Drax Project \u00b7 ZM [fs:2]"), 2)
+  assert.equal(Model.fullscreenCount("Firefly \u00b7 Drax Project \u00b7 ZM"), 0)
+  assert.equal(Model.parseTitle("[yt1 yt2] In The Air \u00b7 L.A.B \u00b7 George FM").song, "In The Air")
+})
+
+test("country order: yours, neighbours, then most stations first", () => {
+  const counts = { NZ: 19, AU: 23, GB: 39, US: 40, ZA: 5, HU: 11 }
+  assert.deepEqual(Model.countryOrder(counts, "NZ"), ["NZ", "AU", "US", "GB", "HU", "ZA"])
+  assert.deepEqual(Model.countryOrder(counts, "GB").slice(0, 2), ["GB", "US"])
+  assert.deepEqual(Model.countryOrder({ CA: 23, MX: 10, US: 40, GB: 39 }, "US"), ["US", "CA", "MX", "GB"])
+  assert.equal(Model.countryOrder(counts, "")[0], "US")
+})
+
+test("favourites: listed first, marked in place, hidden while searching", () => {
+  const rows = Model.stationRows(stations, "NZ", "", ["george", "all-us", "gone"])
+  assert.equal(rows[0].label, "Favourites")
+  assert.deepEqual([rows[1].key, rows[2].key], ["george", "all-us"])
+  assert.equal(rows[3].label, "New Zealand")
+  assert.equal(rows.filter((r) => r.key === "george").length, 2)
+  assert.ok(rows.filter((r) => r.key === "george").every((r) => r.favourite))
+  assert.equal(rows.find((r) => r.key === "zm").favourite, false)
+  assert.equal(Model.stationRows(stations, "NZ", "zm", ["george"])[0].label, "New Zealand")
+})
+
+test("lineProgress wipes across the line and finishes early", () => {
+  const lines = [{ t: 10 }, { t: 20 }, { t: 60 }]
+  assert.equal(Model.lineProgress(lines, 0, 10), 0)
+  assert.ok(Math.abs(Model.lineProgress(lines, 0, 14.25) - 0.5) < 0.001)
+  assert.equal(Model.lineProgress(lines, 0, 19), 1)
+  assert.equal(Model.lineProgress(lines, -1, 5), 0)
+  // A long gap before the next line does not slow the wipe to a crawl.
+  assert.equal(Model.lineProgress(lines, 1, 31), 1)
+  // The last line has no next line to measure against.
+  assert.equal(Model.lineProgress(lines, 2, 64), 1)
+})
+
+test("toggleFavourite adds and removes", () => {
+  assert.deepEqual(Model.toggleFavourite([], "zm"), ["zm"])
+  assert.deepEqual(Model.toggleFavourite(["zm", "george"], "zm"), ["george"])
 })
 
 console.log(`\n${passed} tests passed`)

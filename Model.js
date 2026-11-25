@@ -6,7 +6,8 @@
 // The mini player names its window "song · artist · station", or
 // "station · FM.video" before the first song.
 function parseTitle(title) {
-  var parts = String(title || "").split(" · ")
+  var clean = String(title || "").replace(/\s\[fs:\d+\]\s*$/, "").replace(/^\[[^\]]*\]\s+/, "")
+  var parts = clean.split(" \u00b7 ")
   if (parts.length < 2) return null
   if (parts.length === 2) {
     if (parts[1] === "FM.video") return { song: "", artist: "", station: parts[0] }
@@ -17,6 +18,15 @@ function parseTitle(title) {
     artist: parts[parts.length - 2],
     station: parts[parts.length - 1]
   }
+}
+
+// Two extras can ride along on the title. The page counts clicks on its
+// full screen button at the end, as " [fs:3]", which is how it asks the
+// plugin to make the window fill the screen. And its debug mode puts
+// "[...] " at the front. parseTitle drops both.
+function fullscreenCount(title) {
+  var m = /\s\[fs:(\d+)\]\s*$/.exec(String(title || ""))
+  return m ? parseInt(m[1], 10) : 0
 }
 
 function sameText(a, b) {
@@ -101,9 +111,47 @@ function activeLine(lines, t) {
   return at
 }
 
-// Rows for the station picker: a heading for each country, the user's own
-// country first, then each station. With a search, only the matches.
-function stationRows(stations, userCountry, query) {
+// How much of the line being sung to light up, from 0 to 1. There are no
+// times for single words, so this spreads the words evenly over the line
+// and treats it as fully sung a little before the next line starts.
+function lineProgress(lines, at, t) {
+  if (at < 0 || at >= lines.length) return 0
+  var start = lines[at].t
+  var end = at + 1 < lines.length ? lines[at + 1].t : start + 4
+  var span = Math.min(Math.max(end - start, 0.1), 12)
+  return Math.max(0, Math.min(1, (t - start) / span / 0.85))
+}
+
+// The countries listed first after your own: the ones next door, or the ones
+// whose radio you are most likely to know.
+var neighbours = {
+  NZ: ["AU"], AU: ["NZ"], US: ["CA", "MX"], CA: ["US"], MX: ["US", "CO"],
+  GB: ["IE", "FR", "NL"], IE: ["GB"], FR: ["ES", "IT", "DE", "GB"], DE: ["NL", "FR", "PL"],
+  NL: ["DE", "GB"], ES: ["FR", "IT"], IT: ["FR", "ES"], PL: ["DE", "HU"], HU: ["PL", "DE"],
+  SE: ["DE", "NL"], CO: ["CL", "MX"], CL: ["CO"], ZA: []
+}
+
+// Country codes in the order to show them: yours, your neighbours, then
+// the rest with the most stations first.
+function countryOrder(counts, userCountry) {
+  var near = neighbours[userCountry] || []
+  var rank = function(code) {
+    if (code === userCountry) return 0
+    var at = near.indexOf(code)
+    return at >= 0 ? 1 + at : 100
+  }
+  return Object.keys(counts).sort(function(a, b) {
+    var ra = rank(a), rb = rank(b)
+    if (ra !== rb) return ra - rb
+    if (counts[a] !== counts[b]) return counts[b] - counts[a]
+    return countryName(a).localeCompare(countryName(b))
+  })
+}
+
+// Rows for the station picker: favourites, then a heading for each country
+// (see countryOrder) with its stations. With a search, only the matches.
+function stationRows(stations, userCountry, query, favourites) {
+  var favs = favourites || []
   var words = String(query || "").toLowerCase().split(/\s+/).filter(function(w) { return w !== "" })
   var groups = {}
   var list = stations || []
@@ -120,22 +168,45 @@ function stationRows(stations, userCountry, query) {
     if (!groups[c]) groups[c] = []
     groups[c].push(s)
   }
-  var codes = Object.keys(groups).sort(function(a, b) {
-    if (a === userCountry) return -1
-    if (b === userCountry) return 1
-    return countryName(a).localeCompare(countryName(b))
-  })
+  var counts = {}
+  for (var code0 in groups) counts[code0] = groups[code0].length
+  var codes = countryOrder(counts, userCountry)
   var rows = []
+  var isFav = function(key) { return favs.indexOf(key) !== -1 }
+
+  if (!words.length && favs.length) {
+    var mine = []
+    for (var f = 0; f < favs.length; f++) {
+      var station = findStation(list, favs[f])
+      if (station && station.isActive !== false)
+        mine.push({ kind: "station", label: station.name, detail: station.genre || "", key: favs[f], favourite: true })
+      else if (mixCountry(favs[f]) !== "")
+        mine.push({ kind: "station", label: "All " + countryName(mixCountry(favs[f])) + " stations", detail: "mix", key: favs[f], favourite: true })
+    }
+    if (mine.length) rows.push({ kind: "heading", label: "Favourites", key: "" })
+    rows = rows.concat(mine)
+  }
+
   for (var g = 0; g < codes.length; g++) {
     var code = codes[g]
+    var mix = "all-" + code.toLowerCase()
     rows.push({ kind: "heading", label: countryName(code), key: "" })
     if (!words.length)
-      rows.push({ kind: "station", label: "All " + countryName(code) + " stations", detail: "mix", key: "all-" + code.toLowerCase() })
+      rows.push({ kind: "station", label: "All " + countryName(code) + " stations", detail: "mix", key: mix, favourite: isFav(mix) })
     var members = groups[code].slice().sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0) })
-    for (var k = 0; k < members.length; k++)
-      rows.push({ kind: "station", label: members[k].name, detail: members[k].genre || "", key: members[k].slug || members[k].id })
+    for (var k = 0; k < members.length; k++) {
+      var key = members[k].slug || members[k].id
+      rows.push({ kind: "station", label: members[k].name, detail: members[k].genre || "", key: key, favourite: isFav(key) })
+    }
   }
   return rows
+}
+
+// The list of favourites with one station added, or taken out if it was in.
+function toggleFavourite(favourites, key) {
+  var out = (favourites || []).filter(function(k) { return k !== key })
+  if (out.length === (favourites || []).length) out.push(key)
+  return out
 }
 
 function shorten(text, max) {
@@ -153,5 +224,7 @@ function miniHref(base, station, lyrics) {
   var q = []
   if (station) q.push("station=" + encodeURIComponent(station))
   if (lyrics) q.push("lyrics=1")
+  // Tells the page it is inside the plugin's window (see fullscreenCount).
+  q.push("shell=omarchy")
   return q.length ? base + "?" + q.join("&") : base
 }

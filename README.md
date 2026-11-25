@@ -7,9 +7,9 @@ Radio with music videos, on your desktop. This plugin puts [FM.video](https://fm
 ## What it does
 
 - **The song in your bar.** The song a station is playing now, with play, pause and next.
-- **A panel of stations.** Click the song for over 200 stations, grouped by country with yours first. Type to search by name, style, city or country.
+- **A panel of stations.** Click the song for over 200 stations, grouped by country: yours first, then your neighbours, then the countries with the most stations. Type to search by name, style, city or country. Click the heart on a station to keep it at the top.
 - **A small video window.** The station's music videos play in a little window that floats on top of your other windows and follows you to every workspace.
-- **Karaoke in the bar.** When a song has timed lyrics, the bar shows the line being sung, in time with the video.
+- **Karaoke in the bar.** When a song has timed lyrics, the bar shows the line being sung, in time with the video, and the words light up as they are sung.
 
 ## What you need
 
@@ -60,8 +60,9 @@ In the panel:
 - **Lyrics on the video** shows the line over the video as well.
 - **Small, Medium, Large, Full screen** set the size of the video window.
 - Pick a station to switch to it. Type to search, use the up and down arrows, and press Enter.
+- Point at a station and click its heart to make it a favourite. Favourites are listed first. Click the heart again to take it off.
 
-To move the video window, hold Super and drag it. To resize it, hold Super and drag with the right button. It opens in the same place next time.
+To move the video window, drag it. To resize it, hold Super and drag with the right button. It opens in the same place next time.
 
 With the video window in front, its own keys work too: Space plays and pauses, N is next, P is previous, S picks a station, L turns lyrics on the video on and off, and M mutes.
 
@@ -90,6 +91,8 @@ omarchy-shell video.fm.radio next
 omarchy-shell video.fm.radio previous
 omarchy-shell video.fm.radio station george
 omarchy-shell video.fm.radio size medium     # small, medium, large or full
+omarchy-shell video.fm.radio barLyrics true
+omarchy-shell video.fm.radio videoLyrics false
 omarchy-shell video.fm.radio status
 ```
 
@@ -104,6 +107,10 @@ There are three pieces.
 The plugin learns what the window is playing from the window's title, and reads the position in the song from the desktop's media controls (MPRIS) to keep the lyric line in time. Commands such as next go to the page as key presses.
 
 The video window has a browser profile of its own, kept apart from your normal browsing.
+
+Dragging works through a small Lua script, `scripts/fmv-drag.lua`, that the plugin loads into Hyprland while the video window is open. It watches the left mouse button and moves the window only when the press lands on the FM.video window. Clicks still go through to whatever is under the pointer, and no other window is affected. It is removed when the video window is closed from the panel, and on any Hyprland reload. To remove it by hand: `hyprctl eval 'fmvideo_drag.unload()'`.
+
+Nothing times single words, so the lit part of a lyric line is worked out from how far the song is between this line and the next.
 
 ### What it sends over the network
 

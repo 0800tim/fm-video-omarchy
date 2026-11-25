@@ -57,6 +57,8 @@ Panel {
   readonly property string glyphPause: "\u{F03E4}"
   readonly property string glyphNext: "\u{F04AD}"
   readonly property string glyphPrevious: "\u{F04AE}"
+  readonly property string glyphHeart: "\u{F02D1}"
+  readonly property string glyphHeartOutline: "\u{F02D5}"
 
   readonly property bool windowOpen: svc ? svc.windowOpen : false
   readonly property bool playing: svc ? svc.playing : false
@@ -121,8 +123,51 @@ Panel {
       text: root.labelText
       horizontalMargin: 4
       dimmed: !root.windowOpen
+      // For a lyric line the button's own label only holds the space. The
+      // two copies below draw it: a dim one, and a bright one that is
+      // uncovered from the left as the line is sung.
+      labelVisible: !root.showingLyric
       tooltipText: root.opened ? "" : root.tip + "\nClick for stations"
       onPressed: function(b) { root.press(b, function() { root.toggle() }) }
+
+      Item {
+        id: karaoke
+        visible: root.showingLyric
+        anchors.centerIn: parent
+        width: unsung.implicitWidth
+        height: unsung.implicitHeight
+
+        Text {
+          id: unsung
+          textFormat: Text.PlainText
+          text: root.labelText
+          color: label.foreground
+          opacity: 0.5
+          font.family: label.fontFamily
+          font.pixelSize: label.fontSize
+          renderType: Text.NativeRendering
+        }
+
+        Item {
+          clip: true
+          height: parent.height
+          width: Math.round(parent.width * (root.svc ? root.svc.lyricProgress : 0))
+          // Glide between readings, but snap back for a new line.
+          Behavior on width {
+            enabled: root.svc !== null && root.svc.lyricProgress > 0.02
+            NumberAnimation { duration: 200; easing.type: Easing.Linear }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            text: root.labelText
+            color: label.foreground
+            font.family: label.fontFamily
+            font.pixelSize: label.fontSize
+            renderType: Text.NativeRendering
+          }
+        }
+      }
     }
 
     BarIconButton {
@@ -157,7 +202,7 @@ Panel {
 
   property string query: ""
   property int cursor: -1
-  readonly property var rows: svc ? Model.stationRows(svc.stations, svc.country, query) : []
+  readonly property var rows: svc ? Model.stationRows(svc.stations, svc.country, query, svc.favourites) : []
 
   function moveCursor(step) {
     var at = cursor
@@ -360,7 +405,7 @@ Panel {
         Text {
           width: parent.width
           textFormat: Text.PlainText
-          text: "Hold Super and drag the video to move it. Super and right drag resizes it."
+          text: "Drag the video to move it. Hold Super and drag with the right button to resize it."
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -449,7 +494,7 @@ Panel {
           required property int index
           readonly property bool heading: modelData.kind === "heading"
           readonly property bool current: !heading && root.svc !== null && root.svc.station === modelData.key
-          readonly property bool hot: !heading && (rowMouse.containsMouse || root.cursor === index)
+          readonly property bool hot: !heading && (rowMouse.containsMouse || heartMouse.containsMouse || root.cursor === index)
 
           width: ListView.view.width
           height: heading ? Style.space(26) : Style.spacing.popupRowHeight
@@ -480,8 +525,8 @@ Panel {
 
           Text {
             id: detail
-            anchors.right: parent.right
-            anchors.rightMargin: Style.space(8)
+            anchors.right: heart.left
+            anchors.rightMargin: Style.space(6)
             anchors.verticalCenter: parent.verticalCenter
             width: Math.min(implicitWidth, parent.width * 0.4)
             visible: !stationRow.heading
@@ -500,6 +545,34 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: root.pick(stationRow.modelData.key)
+          }
+
+          // A heart to keep the station at the top of the list. Always
+          // shown on favourites, and on the row under the pointer.
+          Text {
+            id: heart
+            readonly property bool on: !stationRow.heading && stationRow.modelData.favourite === true
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            width: stationRow.heading ? 0 : Style.space(18)
+            horizontalAlignment: Text.AlignHCenter
+            visible: !stationRow.heading
+            opacity: on || heartMouse.containsMouse ? 1 : stationRow.hot ? 0.45 : 0
+            textFormat: Text.PlainText
+            text: on ? root.glyphHeart : root.glyphHeartOutline
+            color: on ? Commons.Color.urgent : root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.icon
+
+            MouseArea {
+              id: heartMouse
+              anchors.fill: parent
+              anchors.margins: -Style.space(4)
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.svc) root.svc.toggleFavourite(stationRow.modelData.key)
+            }
           }
         }
       }

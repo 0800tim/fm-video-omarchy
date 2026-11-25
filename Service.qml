@@ -21,6 +21,7 @@ Item {
   property bool barLyrics: true               // show the lyric line in the bar
   property bool videoLyrics: false            // show the lyric line over the video
   property var geometry: null                 // { x, y, w, h } of the video window
+  property var favourites: []                 // station keys, in the order they were added
   property bool stateLoaded: false
 
   // ---- From the API.
@@ -94,6 +95,7 @@ Item {
   property real lyricOffset: 0
   property string lyricsFor: ""    // the video the lines belong to
   property string lyricLine: ""
+  property real lyricProgress: 0   // how much of the line has been sung, 0 to 1
   readonly property bool wantLyrics: barLyrics && windowOpen && widgets > 0
 
   // ------------------------------------------------------------ requests
@@ -167,6 +169,7 @@ Item {
     lyricLines = []
     lyricOffset = 0
     lyricLine = ""
+    lyricProgress = 0
   }
 
   function loadLyrics() {
@@ -211,15 +214,17 @@ Item {
   onWantLyricsChanged: loadLyrics()
 
   Timer {
-    interval: 250
+    interval: 200
     repeat: true
     running: root.lyricLines.length > 0 && root.player !== null && root.wantLyrics
     onTriggered: {
       // The player only reports a new position when asked to.
       root.player.positionChanged()
-      var at = Model.activeLine(root.lyricLines, root.player.position + root.lyricOffset)
+      var now = root.player.position + root.lyricOffset
+      var at = Model.activeLine(root.lyricLines, now)
       var line = at >= 0 ? root.lyricLines[at].text : ""
-      if (line !== root.lyricLine) root.lyricLine = line
+      if (line !== root.lyricLine) { root.lyricProgress = 0; root.lyricLine = line }
+      root.lyricProgress = Model.lineProgress(root.lyricLines, at, now)
     }
     onRunningChanged: if (!running) root.lyricLine = ""
   }
@@ -321,6 +326,13 @@ Item {
     saveState()
   }
 
+  function toggleFavourite(key) {
+    key = String(key || "")
+    if (key === "") return
+    favourites = Model.toggleFavourite(favourites, key)
+    saveState()
+  }
+
   // Pick a station. Opens the video window if it is closed.
   function setStation(key) {
     key = String(key || "")
@@ -346,6 +358,23 @@ Item {
       lyricsFor = ""
       clearLyrics()
     }
+  }
+
+  // The page's own full screen button. A pinned window cannot go full
+  // screen by itself, so the page counts clicks in its title and the plugin
+  // does the work (see Model.fullscreenCount).
+  property var fullscreenWindow: null
+  property int fullscreenSeen: 0
+  onWindowTitleChanged: {
+    var count = Model.fullscreenCount(windowTitle)
+    if (toplevel !== fullscreenWindow) {
+      fullscreenWindow = toplevel
+      fullscreenSeen = count
+      return
+    }
+    if (count === fullscreenSeen) return
+    fullscreenSeen = count
+    windowCommand(["fullscreen"], function(data) { root.takeState(data) })
   }
 
   // Someone picked another station inside the window: follow it.
@@ -395,7 +424,8 @@ Item {
   function saveState() {
     if (!stateLoaded) return
     stateFile.setText(JSON.stringify({
-      station: station, barLyrics: barLyrics, videoLyrics: videoLyrics, geometry: geometry
+      station: station, barLyrics: barLyrics, videoLyrics: videoLyrics, geometry: geometry,
+      favourites: favourites
     }, null, 2) + "\n")
   }
 
@@ -406,6 +436,8 @@ Item {
       if (typeof data.barLyrics === "boolean") barLyrics = data.barLyrics
       if (typeof data.videoLyrics === "boolean") videoLyrics = data.videoLyrics
       if (data.geometry && data.geometry.w > 0 && data.geometry.h > 0) geometry = data.geometry
+      if (Array.isArray(data.favourites))
+        favourites = data.favourites.filter(function(k) { return typeof k === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,49}$/.test(k) })
     } catch (e) {}
     stateLoaded = true
   }
@@ -442,6 +474,8 @@ Item {
     function previous(): void { root.previous() }
     function station(key: string): void { root.setStation(key) }
     function size(name: string): void { root.setWindowSize(name) }
+    function barLyrics(on: bool): void { root.setBarLyrics(on) }
+    function videoLyrics(on: bool): void { root.setVideoLyrics(on) }
     function status(): string {
       return JSON.stringify({
         station: root.station, stationName: root.stationName, song: root.song, artist: root.artist,
