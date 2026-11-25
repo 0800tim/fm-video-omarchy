@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Copy the plugin from this checkout into the Omarchy plugins folder, for
+# trying changes on your own desktop. The shell reloads it when files change.
+
+set -euo pipefail
+
+src="$(cd "$(dirname "$0")/.." && pwd)"
+dest="$HOME/.config/omarchy/plugins/video.fm.radio"
+
+mkdir -p "$dest"
+rsync -a --delete --exclude .git --exclude tools --exclude tests --exclude docs "$src/" "$dest/"
+echo "Copied to $dest"

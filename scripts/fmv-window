@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# Opens, finds, moves and closes the FM.video window for the plugin.
+#
+#   fmv-window open <url> [x y w h]    open the window, floating and pinned
+#   fmv-window switch <url>            open it again on a new address, then close the old one
+#   fmv-window close                   close it
+#   fmv-window key <key>               press one of the page's keys (space, N, P, L, M)
+#   fmv-window state                   print where it is, as JSON
+#
+# The window is an ordinary web page in a chromeless browser window. Hyprland
+# is asked to float it and pin it, so it stays on top on every workspace.
+# Needs Hyprland with the Lua config that Omarchy 4.5 and later ship, and jq.
+
+set -uo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/fmvideo-omarchy"
+PROFILE_DIR="$STATE_DIR/browser"
+
+# The browser names the window after the page's address:
+# chrome-fm.video__mini-Default
+CLASS_RE='^[A-Za-z-]+-fm\.video__mini-'
+
+clients() {
+  hyprctl clients -j 2>/dev/null | jq -c --arg re "$CLASS_RE" '[.[] | select(.class | test($re))]'
+}
+
+state() {
+  clients | jq -c '
+    if length == 0 then { open: false }
+    else .[-1] | { open: true, address: .address, pid: .pid, title: .title,
+                   x: .at[0], y: .at[1], w: .size[0], h: .size[1], pinned: .pinned, floating: .floating }
+    end'
+}
+
+dispatch() {
+  hyprctl dispatch "$1" >/dev/null 2>&1
+}
+
+# Same choice as omarchy-launch-webapp: the default browser when it is a
+# Chromium kind, otherwise Chromium.
+browser() {
+  local desktop exec_line
+  desktop=$(xdg-settings get default-web-browser 2>/dev/null)
+  case $desktop in
+  google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium* | chromium*) ;;
+  *) desktop="chromium.desktop" ;;
+  esac
+  exec_line=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {"$HOME/.local","$HOME/.nix-profile",/usr}/share/applications/"$desktop" 2>/dev/null | head -1)
+  echo "${exec_line:-chromium}"
+}
+
+is_int() {
+  [[ ${1:-} =~ ^-?[0-9]+$ ]]
+}
+
+# True when the point is on a screen that is plugged in now.
+on_a_monitor() {
+  hyprctl monitors -j 2>/dev/null | jq -e --argjson x "$1" --argjson y "$2" '
+    any(.[]; (.x <= $x) and ($x < .x + (.width / .scale)) and (.y <= $y) and ($y < .y + (.height / .scale)))' >/dev/null 2>&1
+}
+
+# Float, pin and size the window as it appears, so it never flashes up tiled.
+# Replaces the rule from the last launch. Top right corner by default.
+set_rule() {
+  local w="$1" h="$2"
+  hyprctl eval "if fmvideo_rule then fmvideo_rule:set_enabled(false) end; fmvideo_rule = hl.window_rule({ match = { class = \"^[A-Za-z-]+-fm\\\\.video__mini-.*\" }, float = true, pin = true, size = { $w, $h }, move = { \"(monitor_w-window_w-24)\", \"64\" }, no_initial_focus = true, tag = \"-default-opacity\", opacity = \"1 1\" })" >/dev/null 2>&1
+}
+
+launch() {
+  local url="$1" bin
+  bin=$(browser)
+  mkdir -p "$STATE_DIR"
+  local cmd=("$bin" "--app=$url" "--user-data-dir=$PROFILE_DIR"
+    --autoplay-policy=no-user-gesture-required --no-first-run --no-default-browser-check)
+  if command -v uwsm-app >/dev/null 2>&1; then
+    setsid uwsm-app -- "${cmd[@]}" >/dev/null 2>&1 &
+  else
+    setsid "${cmd[@]}" >/dev/null 2>&1 &
+  fi
+}
+
+# Wait for a window that is not in the list of old addresses.
+wait_for_new() {
+  local old="$1" address
+  for _ in $(seq 1 80); do
+    address=$(clients | jq -r --arg old "$old" '[.[] | .address | select(. as $a | ($old | split(" ") | index($a)) | not)] | .[-1] // empty')
+    [[ -n $address ]] && { echo "$address"; return 0; }
+    sleep 0.25
+  done
+  return 1
+}
+
+place() {
+  local address="$1" x="$2" y="$3" w="$4" h="$5"
+  # The rule covers these on a normal launch. This is for a window the rule
+  # missed, and it costs nothing when the rule worked.
+  dispatch "hl.dsp.window.float({ window = \"address:$address\", action = \"enable\" })"
+  if [[ $(hyprctl clients -j | jq -r --arg a "$address" '.[] | select(.address == $a) | .pinned') != "true" ]]; then
+    dispatch "hl.dsp.window.pin({ window = \"address:$address\", action = \"enable\" })"
+  fi
+  if is_int "$x" && is_int "$y" && on_a_monitor "$((x + w / 2))" "$((y + h / 2))"; then
+    dispatch "hl.dsp.window.resize({ window = \"address:$address\", x = $w, y = $h })"
+    dispatch "hl.dsp.window.move({ window = \"address:$address\", x = $x, y = $y })"
+  fi
+}
+
+case "${1:-}" in
+open)
+  url="${2:-}"
+  [[ $url == https://* ]] || { echo '{"open":false,"error":"bad address"}'; exit 1; }
+  x="${3:-}" y="${4:-}" w="${5:-480}" h="${6:-270}"
+  is_int "$w" && (( w >= 160 )) || w=480
+  is_int "$h" && (( h >= 90 )) || h=270
+  old=$(clients | jq -r '[.[].address] | join(" ")')
+  if [[ -n $old ]]; then state; exit 0; fi
+  set_rule "$w" "$h"
+  launch "$url"
+  if address=$(wait_for_new ""); then place "$address" "$x" "$y" "$w" "$h"; fi
+  state
+  ;;
+switch)
+  url="${2:-}"
+  [[ $url == https://* ]] || { echo '{"open":false,"error":"bad address"}'; exit 1; }
+  old=$(clients | jq -r '[.[].address] | join(" ")')
+  read -r x y w h < <(clients | jq -r 'if length == 0 then "x x 480 270" else .[-1] | "\(.at[0]) \(.at[1]) \(.size[0]) \(.size[1])" end')
+  set_rule "$w" "$h"
+  launch "$url"
+  if address=$(wait_for_new "$old"); then
+    place "$address" "$x" "$y" "$w" "$h"
+    for a in $old; do dispatch "hl.dsp.window.close({ window = \"address:$a\" })"; done
+  fi
+  state
+  ;;
+close)
+  before=$(state)
+  for a in $(clients | jq -r '.[].address'); do
+    dispatch "hl.dsp.window.close({ window = \"address:$a\" })"
+  done
+  # Report where it was, so the plugin can put it back there next time.
+  echo "$before" | jq -c '.open = false'
+  ;;
+key)
+  key="${2:-}"
+  [[ $key =~ ^[A-Za-z]+$ ]] || exit 1
+  for a in $(clients | jq -r '.[].address'); do
+    dispatch "hl.dsp.send_shortcut({ mods = \"\", key = \"$key\", window = \"address:$a\" })"
+  done
+  ;;
+state)
+  state
+  ;;
+*)
+  echo "usage: fmv-window open <url> [x y w h] | switch <url> | close | key <key> | state" >&2
+  exit 2
+  ;;
+esac
