@@ -207,6 +207,7 @@ Item {
     saveState()
     registering = true
     var request = requestComponent.createObject(root, {
+      limit: C.registerLimit,
       done: function(status, data) {
         root.registering = false
         if (status === 200 && data && /^fmi_[A-Za-z0-9_-]{8,200}$/.test(String(data.token || ""))) {
@@ -224,10 +225,10 @@ Item {
       }
     })
     var version = manifest && manifest.version ? String(manifest.version) : "0"
-    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent,
+    request.command = limited(request.limit, ["-sS", "--max-time", "10", "-A", C.userAgent,
       "-H", "X-FMV-Key: " + C.apiKey, "-H", "Content-Type: application/json", "-X", "POST",
       "--data-raw", JSON.stringify({ app: "omarchy", version: version }), "-w", "\n%{http_code}",
-      C.apiBase + "/api/plugin/register"]
+      C.apiBase + "/api/plugin/register"])
     request.running = true
   }
 

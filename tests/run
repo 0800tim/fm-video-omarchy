@@ -16,6 +16,12 @@ jq -e '(.description | length) <= 500 and (.name | length) <= 120 and (.author |
   and (.version | length) <= 64 and (.id | length) <= 128 and (.id == (.id | ascii_downcase))' manifest.json >/dev/null \
   || { echo "manifest.json: a field is too long for the marketplace, or the id is not lower case" >&2; exit 1; }
 
+# Every request to FM.video goes through limited(), which cuts the answer
+# off at a byte limit. curl must not be called any other way.
+if grep -n '"curl"' ./*.qml ./*.js; then
+  echo "curl is called without the byte limit: use limited()" >&2; exit 1
+fi
+
 if command -v omarchy >/dev/null 2>&1; then
   omarchy plugin validate .
 fi

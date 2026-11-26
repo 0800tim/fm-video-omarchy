@@ -30,6 +30,7 @@ var stationsRefreshIdle = 1800000
 // that has gone wrong cannot fill the shell's memory.
 var responseLimit = 524288      // every request but the station list
 var stationsLimit = 2097152     // the station list, about 300 KB today
+var registerLimit = 4096        // the answer holding the install token
 var maxStations = 2000
 var maxFeed = 50
 var maxTracks = 500
