@@ -829,6 +829,9 @@ Item {
   // The page is asking the listener to sign in. Its panel is cramped in a
   // small window, so bring the window out and make it bigger for as long
   // as the panel is up, then put it back.
+  // The page is having trouble starting the video: 1 loading it again,
+  // 2 rebuilding the player, 3 given up skipping and trying now and then.
+  readonly property int windowStall: windowOpen ? Model.markerCount(windowTitle, "stall") : 0
   readonly property bool windowAuth: windowOpen && Model.titleAuth(windowTitle)
   property var authRestore: null
   onWindowAuthChanged: {
@@ -1024,7 +1027,7 @@ Item {
       return JSON.stringify({
         station: root.station, list: root.feedOwner, stationName: root.stationName, song: root.song, artist: root.artist,
         windowOpen: root.windowOpen, windowShown: root.windowShown, playing: root.playing, live: root.windowLive, lyricLine: root.lyricLine,
-        lyricLines: root.lyricLines.length, stations: root.stations.length, error: root.lastError, registered: root.installToken !== ""
+        lyricLines: root.lyricLines.length, stations: root.stations.length, error: root.lastError, stall: root.windowStall, registered: root.installToken !== ""
       })
     }
   }

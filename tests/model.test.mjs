@@ -302,4 +302,12 @@ test("oversized lyrics and track lists are cut down", () => {
   assert.deepEqual(Model.listTracks("channel", { tracks: "nope" }, 500), [])
 })
 
+test("a marker the plugin has not met is still stripped from the title", () => {
+  const t = Model.parseTitle("Midnight Sun \u00b7 Zara Larsson \u00b7 The Edge [lo:+0.0] [v:uvY8fdgezLQ] [stall:2]")
+  assert.equal(t.station, "The Edge")
+  assert.equal(Model.markerCount("a \u00b7 b \u00b7 c [v:x] [stall:2]", "stall"), 2)
+  assert.equal(Model.markerCount("a \u00b7 b \u00b7 c [v:x]", "stall"), 0)
+  assert.equal(Model.parseTitle("Song [live:2019] \u00b7 Artist \u00b7 ZM").song, "Song [live:2019]")
+})
+
 console.log(`\n${passed} tests passed`)

@@ -316,7 +316,7 @@ Panel {
         width: parent.width
         title: root.svc ? root.svc.stationName : "FM.video"
         meta: !root.svc ? "" : root.svc.lastError !== "" ? root.svc.lastError.toUpperCase()
-          : !root.windowOpen ? "ON AIR NOW" : !root.playing ? "PAUSED" : root.windowLive ? "LIVE" : "PLAYING"
+          : !root.windowOpen ? "ON AIR NOW" : root.svc.windowStall >= 3 ? "YOUTUBE IS NOT ANSWERING" : root.svc.windowStall > 0 ? "TRYING THE VIDEO AGAIN" : !root.playing ? "PAUSED" : root.windowLive ? "LIVE" : "PLAYING"
         foreground: root.foreground
         fontFamily: root.fontFamily
         // The FM.video mark, top right. Click it for the full app.

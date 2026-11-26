@@ -34,7 +34,9 @@ function parseTitle(title) {
 // front. parseTitle drops them all.
 function stripMarkers(title) {
   var s = String(title || "")
-  var marker = /\s\[(?:fs|lo|nx|pv|app|v|auth):[^\]]*\]\s*$/
+  // Any " [name:value]" on the end, so a marker added to the page later
+  // does not end up in the station's name.
+  var marker = /\s\[[a-z]{1,12}:[^\]]*\]\s*$/
   while (marker.test(s)) s = s.replace(marker, "")
   return s
 }
