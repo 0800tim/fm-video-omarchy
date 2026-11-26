@@ -4,7 +4,7 @@
 
 Pick from over 200 stations around the world and watch what they are playing in a small window that floats above your work. Sing along as karaoke lyrics light up word by word. Listen live with a MilkDrop visualiser, or dive into thousands of hours of festival sets, concerts, channels and playlists. Free, with no account needed.
 
-![The bar showing a lyric line, with the FM.video window floating over a terminal](preview.png)
+![An Omarchy desktop with the FM.video window showing a karaoke line, the lyric in the bar, and the panel open on George FM](preview.png)
 
 ```bash
 omarchy plugin add https://github.com/0800tim/fm-video-omarchy.git --enable
