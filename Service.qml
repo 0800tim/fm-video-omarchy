@@ -116,12 +116,14 @@ Item {
   }
   readonly property var stationObject: inList ? null : Model.findStation(stations, station)
   readonly property var livePlay: !inList && feed.length > 0 && feedStation === station ? feed[0] : null
-  readonly property string song: windowOpen
-    ? (titleInfo ? titleInfo.song : "")
-    : (livePlay ? String(livePlay.title || "") : "")
-  readonly property string artist: windowOpen
-    ? (titleInfo ? titleInfo.artist : "")
-    : (livePlay ? String(livePlay.artist || "") : "")
+  // While listening live the song on air is the station's newest play.
+  // The plugin's own list has it sooner than the page's title does, which
+  // can be a few songs behind just after a station change.
+  readonly property bool songFromFeed: livePlay !== null && (!windowOpen || windowLive)
+  readonly property string song: songFromFeed ? String(livePlay.title || "")
+    : (windowOpen && titleInfo ? titleInfo.song : "")
+  readonly property string artist: songFromFeed ? String(livePlay.artist || "")
+    : (windowOpen && titleInfo ? titleInfo.artist : "")
   readonly property var currentPlay: windowOpen ? (feedStation === feedOwner ? Model.findPlay(feed, song, artist) : null) : livePlay
   readonly property var recent: feed.slice(0, 5)
 
