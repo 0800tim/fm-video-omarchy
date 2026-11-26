@@ -142,15 +142,21 @@ Item {
     Process {
       id: request
       property var done: null
+      property int limit: C.responseLimit
 
+      // The command cuts the answer off at the limit, so no more than that
+      // is ever collected here, whatever the server sends.
       stdout: StdioCollector {
         waitForEnd: true
         onStreamFinished: {
-          // curl adds the status code on a last line of its own.
+          // curl adds the status code on a last line of its own. An answer
+          // that was cut off has lost that line, and is thrown away.
           var cut = text.lastIndexOf("\n")
-          var status = parseInt(cut >= 0 ? text.slice(cut + 1) : "0", 10) || 0
+          var tail = cut >= 0 ? text.slice(cut + 1) : ""
+          var status = /^[0-9]{3}$/.test(tail) ? parseInt(tail, 10) : 0
           var data = null
           var body = cut >= 0 ? text.slice(0, cut) : ""
+          if (body.length > request.limit) { status = 0; body = "" }
           if (status >= 200 && status < 300) {
             try { data = JSON.parse(body) } catch (e) { status = 0 }
           }
@@ -241,18 +247,26 @@ Item {
     return (installToken === "" || installRefused) && (!tokenLoaded || registering) && (tries || 0) < 8
   }
 
-  function api(path, done, tries) {
-    if (waitingForToken(tries)) { delay(1500, function() { root.api(path, done, (tries || 0) + 1) }); return }
+  // curl stops at the limit when the server says how long the answer is,
+  // and head cuts it off there when the server does not say. Five bytes
+  // over leaves room for the status line of an answer that just fits.
+  function limited(limit, args) {
+    return ["sh", "-c", 'curl --max-filesize "$0" "$@" | head -c "$(($0 + 5))"', String(limit)].concat(args)
+  }
+
+  function api(path, done, tries, limit) {
+    if (waitingForToken(tries)) { delay(1500, function() { root.api(path, done, (tries || 0) + 1, limit) }); return }
     if (Date.now() < pausedUntil) { done(429, null); return }
     var request = requestComponent.createObject(root, {
+      limit: limit || C.responseLimit,
       done: function(status, data, body) {
         if (status === 429) root.pausedUntil = Date.now() + 60000
         if (status === 403) root.refused(body)
         done(status, data)
       }
     })
-    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent].concat(headers(),
-      ["-w", "\n%{http_code}", C.apiBase + path])
+    request.command = limited(request.limit, ["-sS", "--max-time", "10", "-A", C.userAgent].concat(headers(),
+      ["-w", "\n%{http_code}", C.apiBase + path]))
     request.running = true
   }
 
@@ -266,20 +280,21 @@ Item {
         done(status, data)
       }
     })
-    request.command = ["curl", "-sS", "--max-time", "10", "-A", C.userAgent].concat(headers(),
-      ["-H", "Content-Type: application/json", "-X", "POST", "--data-raw", JSON.stringify(body), "-w", "\n%{http_code}", C.apiBase + path])
+    request.command = limited(request.limit, ["-sS", "--max-time", "10", "-A", C.userAgent].concat(headers(),
+      ["-H", "Content-Type: application/json", "-X", "POST", "--data-raw", JSON.stringify(body), "-w", "\n%{http_code}", C.apiBase + path]))
     request.running = true
   }
 
   function loadStations() {
     api("/api/stations", function(status, data) {
-      if (status === 200 && data && data.length) {
+      data = Model.clip(data, C.maxStations)
+      if (status === 200 && data.length) {
         var first = root.stations.length === 0
         root.stations = data; root.stationsAt = Date.now(); root.lastError = ""
         if (first) root.loadFeed()
       }
       else { root.lastError = "Could not reach FM.video"; stationsRetry.restart() }
-    })
+    }, 0, C.stationsLimit)
     if (country === "") api("/api/geo", function(status, data) {
       if (status === 200 && data && data.country) root.country = String(data.country)
     })
@@ -300,7 +315,7 @@ Item {
     lastFeedAt = Date.now()
     api("/api/feed/" + encodeURIComponent(feedKey()) + "/20", function(status, data) {
       if (wanted !== root.station || root.inList) return
-      if (status === 200 && data) { root.feed = data; root.feedStation = wanted; root.lastError = "" }
+      if (status === 200 && Array.isArray(data)) { root.feed = Model.clip(data, C.maxFeed); root.feedStation = wanted; root.lastError = "" }
       else if (status !== 429) root.lastError = "Could not reach FM.video"
     })
   }
@@ -320,7 +335,7 @@ Item {
     var kind = listKind
     api(path, function(status, data) {
       if (owner !== root.feedOwner) return
-      if (status === 200 && data) { root.feed = Model.listTracks(kind, data); root.feedStation = owner }
+      if (status === 200 && data) { root.feed = Model.listTracks(kind, data, C.maxTracks); root.feedStation = owner }
     })
   }
 
@@ -330,11 +345,11 @@ Item {
     if (listsLoaded) return
     listsLoaded = true
     api("/api/channels", function(status, data) {
-      if (status === 200 && data && data.channels) root.channels = data.channels
+      if (status === 200 && data && Array.isArray(data.channels)) root.channels = Model.clip(data.channels, C.maxLists)
       else root.listsLoaded = false
     })
     api("/api/playlists/discover?sort=trending&limit=40", function(status, data) {
-      if (status === 200 && data && data.items) root.playlists = data.items
+      if (status === 200 && data && Array.isArray(data.items)) root.playlists = Model.clip(data.items, C.maxLists)
     })
   }
 

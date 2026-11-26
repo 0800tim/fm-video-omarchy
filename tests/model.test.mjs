@@ -285,4 +285,21 @@ test("toggleFavourite adds and removes", () => {
   assert.deepEqual(Model.toggleFavourite(["zm", "george"], "zm"), ["george"])
 })
 
+
+test("clip keeps lists short and turns anything else into an empty list", () => {
+  assert.deepEqual(Model.clip([1, 2, 3], 2), [1, 2])
+  assert.deepEqual(Model.clip([1], 2), [1])
+  assert.deepEqual(Model.clip("a long string", 2), [])
+  assert.deepEqual(Model.clip(null, 2), [])
+  assert.deepEqual(Model.clip({ length: 9 }, 2), [])
+})
+
+test("oversized lyrics and track lists are cut down", () => {
+  const many = Array.from({ length: 5000 }, (_, i) => `[00:${String(i % 60).padStart(2, "0")}.00] line`).join("\n")
+  assert.ok(Model.parseLrc(many).length <= 2000)
+  const tracks = Array.from({ length: 900 }, () => ({ title: "t", artist: "a" }))
+  assert.equal(Model.listTracks("channel", { tracks }, 500).length, 500)
+  assert.deepEqual(Model.listTracks("channel", { tracks: "nope" }, 500), [])
+})
+
 console.log(`\n${passed} tests passed`)

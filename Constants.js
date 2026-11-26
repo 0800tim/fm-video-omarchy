@@ -24,3 +24,13 @@ var defaultHeight = 270
 // How often to look for new stations: when the panel opens, and in the background.
 var stationsRefreshOpen = 300000
 var stationsRefreshIdle = 1800000
+
+// The most that is taken in from FM.video in one answer, in bytes, and the
+// most items kept from it. A longer answer is thrown away, so a server
+// that has gone wrong cannot fill the shell's memory.
+var responseLimit = 524288      // every request but the station list
+var stationsLimit = 2097152     // the station list, about 300 KB today
+var maxStations = 2000
+var maxFeed = 50
+var maxTracks = 500
+var maxLists = 500

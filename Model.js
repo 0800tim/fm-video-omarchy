@@ -118,9 +118,20 @@ function stationLabel(stations, key) {
 }
 
 // Parse LRC text ("[mm:ss.xx] line") into [{ t: seconds, text }], in order.
+// No more than `max` items of a list, and an empty list for anything
+// that is not a list at all.
+function clip(list, max) {
+  if (!Array.isArray(list)) return []
+  return list.length > max ? list.slice(0, max) : list
+}
+
+// The longest lyrics taken in: far more than any real song has.
+var maxLyricText = 200000
+var maxLyricLines = 2000
+
 function parseLrc(text) {
   var out = []
-  var rows = String(text || "").split(/\r?\n/)
+  var rows = String(text || "").slice(0, maxLyricText).split(/\r?\n/, maxLyricLines)
   var stamp = /\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i]
@@ -339,11 +350,11 @@ function siteHref(base, station, options) {
 }
 
 // A channel's or playlist's songs in the shape of a station's plays.
-function listTracks(kind, data) {
-  var raw = kind === "playlist" ? (data && data.items) : (data && data.tracks)
+function listTracks(kind, data, max) {
+  var raw = clip(kind === "playlist" ? (data && data.items) : (data && data.tracks), max || 500)
   var out = []
-  for (var i = 0; raw && i < raw.length; i++) {
-    var t = raw[i]
+  for (var i = 0; i < raw.length; i++) {
+    var t = raw[i] || {}
     out.push({
       title: String(t.title || ""), artist: String(t.artist || ""),
       youTubeVideoId: t.youTubeVideoId || t.youtube_video_id || "",
