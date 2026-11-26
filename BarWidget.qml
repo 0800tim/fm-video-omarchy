@@ -528,7 +528,7 @@ Panel {
         Text {
           width: parent.width
           textFormat: Text.PlainText
-          text: "Drag the video to move it. Hold Super and drag with the right button to resize it."
+          text: "Drag the video to move it. Drag a corner to make it any size."
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

@@ -98,7 +98,7 @@ The plugin never edits your Hyprland config or any other file of yours.
 
 ### The video window
 
-Drag the window to move it. To resize it by hand, hold Super and drag with the right button. It opens in the same place next time.
+Drag the window to move it. Drag any corner to make it whatever size you like: it keeps its shape, and goes from 100 pixels high to as big as you can drag. The Small, Medium and Large buttons are quick presets. It opens in the same place and size next time.
 
 With the window in front, its own keys work too:
 
